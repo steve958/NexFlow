@@ -6,13 +6,26 @@ import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "firebas
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<null | { uid: string; email?: string }>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     return onAuthStateChanged(auth, (u) => {
       setUser(u ? { uid: u.uid, email: u.email ?? undefined } : null);
       setLoading(false);
     });
-  }, []);
-  if (loading) return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
+  }, [mounted]);
+
+  // Show loading during SSR and initial mount
+  if (!mounted || loading) {
+    return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
+  }
+
   if (!user) {
     return (
       <div className="min-h-[60vh] grid place-items-center">

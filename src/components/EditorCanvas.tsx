@@ -1,38 +1,59 @@
 "use client";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import ReactFlow, {
   Background, Controls, MiniMap, addEdge, Connection, Node, Edge,
   applyNodeChanges, applyEdgeChanges, ReactFlowProvider, useReactFlow,
   SelectionMode,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import gsap from "gsap";
 import CustomNode from "@/components/CustomNode";
+import SimpleAnimationPanel from "@/components/SimpleAnimationPanel";
+import ClientOnly from "@/components/ClientOnly";
+import { useOverlayAnimations } from "@/hooks/useOverlayAnimations";
 
 const nodeTypes = { custom: CustomNode };
 
-let idSeq = 1;
-const newId = () => String(idSeq++);
+// Use stable IDs for SSR compatibility
+const newId = (() => {
+  let counter = 0;
+  return () => `node-${++counter}`;
+})();
 
 function CanvasInner() {
   // start with two nodes so you can animate immediately
   const [nodes, setNodes] = useState<Node[]>([
     { id: "svc", position: { x: 60, y: 120 }, data: { label: "Service",  kind: "service"  }, type: "custom" },
     { id: "db",  position: { x: 360, y: 120 }, data: { label: "Database", kind: "database" }, type: "custom" },
+    { id: "api", position: { x: 60, y: 220 }, data: { label: "API Gateway", kind: "gateway" }, type: "custom" },
+    { id: "queue", position: { x: 360, y: 220 }, data: { label: "Message Queue", kind: "queue" }, type: "custom" },
   ]);
   const [edges, setEdges] = useState<Edge[]>([
     { id: "e1", source: "svc", target: "db", label: "writes" },
+    { id: "e2", source: "api", target: "svc", label: "requests" },
+    { id: "e3", source: "svc", target: "queue", label: "events" },
   ]);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const packetRef  = useRef<HTMLDivElement | null>(null);
   const { project } = useReactFlow();
 
+  // Overlay SVG animation system
+  const {
+    containerRef,
+    activeAnimations,
+    startEdgeAnimation,
+    stopEdgeAnimation,
+    stopAllAnimations
+  } = useOverlayAnimations();
+
+  // Track selected edges
+  const selectedEdges = edges.filter(edge => edge.selected);
+  const selectedEdge = selectedEdges.length === 1 ? selectedEdges[0] : null;
+
   // reactflow change handlers
-  const onNodesChange = useCallback((changes: any) => {
+  const onNodesChange = useCallback((changes: Parameters<typeof applyNodeChanges>[0]) => {
     setNodes((ns) => applyNodeChanges(changes, ns));
   }, []);
-  const onEdgesChange = useCallback((changes: any) => {
+  const onEdgesChange = useCallback((changes: Parameters<typeof applyEdgeChanges>[0]) => {
     setEdges((es) => applyEdgeChanges(changes, es));
   }, []);
 
@@ -64,69 +85,79 @@ function CanvasInner() {
     }));
   }, [project]);
 
-  // animate along a selected edge (or first edge if none selected)
-  const onAnimate = useCallback(() => {
-    const edge = edges.find(e => e.selected) ?? edges[0];
-    if (!edge || !packetRef.current) return;
+  // Handle edge animation start
+  const handleStartEdgeAnimation = useCallback((edgeId: string, config: { size: number; color: string; speed: number; frequency: number }) => {
+    const edge = edges.find(e => e.id === edgeId);
+    if (!edge) return;
 
-    const byId = new Map(nodes.map(n => [n.id, n]));
-    const src = byId.get(edge.source);
-    const dst = byId.get(edge.target);
-    if (!src || !dst) return;
+    startEdgeAnimation(edgeId, edge, nodes, config);
+  }, [edges, nodes, startEdgeAnimation]);
 
-    // rough centers (depends on node size; adjust offsets as you style nodes)
-    const sx = src.position.x + 80, sy = src.position.y + 40;
-    const dx = dst.position.x + 80, dy = dst.position.y + 40;
-
-    gsap.set(packetRef.current, { x: sx, y: sy, opacity: 1 });
-    gsap.to(packetRef.current, { x: dx, y: dy, duration: 1.2, ease: "power2.inOut" });
-  }, [edges, nodes]);
-
-  const packet = useMemo(
-    () => <div ref={packetRef} className="absolute w-2 h-2 rounded-full bg-black opacity-0" />,
-    []
-  );
+  // Handle edge animation stop
+  const handleStopEdgeAnimation = useCallback((edgeId: string) => {
+    stopEdgeAnimation(edgeId);
+  }, [stopEdgeAnimation]);
 
   return (
-    <div
-      ref={wrapperRef}
-      data-editor-root
-      className="relative h-[70vh] w-full rounded-xl border overflow-hidden"
-      onDrop={onDrop}
-      onDragOver={onDragOver}
-    >
-      {packet}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        nodeTypes={nodeTypes}
-        fitView
-        snapToGrid
-        snapGrid={[10, 10]}
-        panOnScroll
-        selectionMode={SelectionMode.Partial}
+    <>
+      <div
+        ref={(el) => {
+          wrapperRef.current = el;
+          containerRef.current = el;
+        }}
+        data-editor-root
+        className="relative h-[70vh] w-full rounded-xl border overflow-hidden"
+        onDrop={onDrop}
+        onDragOver={onDragOver}
       >
-        <Background />
-        <MiniMap />
-        <Controls />
-      </ReactFlow>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          fitView
+          snapToGrid
+          snapGrid={[10, 10]}
+          panOnScroll
+          selectionMode={SelectionMode.Partial}
+        >
+          <Background />
+          <MiniMap />
+          <Controls />
+        </ReactFlow>
 
-      <div className="absolute bottom-4 right-4 flex gap-2">
-        <button onClick={onAnimate} className="rounded-xl border bg-white/80 px-3 py-1 shadow">
-          Animate
-        </button>
+        <div className="absolute bottom-4 left-4 flex gap-2">
+          <button
+            onClick={stopAllAnimations}
+            className="rounded-xl border bg-white/80 px-3 py-1 shadow hover:bg-white"
+            disabled={activeAnimations.length === 0}
+          >
+            Stop All ({activeAnimations.length})
+          </button>
+        </div>
       </div>
-    </div>
+
+      <ClientOnly fallback={<div />}>
+        <SimpleAnimationPanel
+          selectedEdge={selectedEdge}
+          nodes={nodes}
+          onStartEdgeAnimation={handleStartEdgeAnimation}
+          onStopEdgeAnimation={handleStopEdgeAnimation}
+          activeAnimations={activeAnimations}
+        />
+      </ClientOnly>
+    </>
   );
 }
 
 export default function EditorCanvas() {
   return (
-    <ReactFlowProvider>
-      <CanvasInner />
-    </ReactFlowProvider>
+    <ClientOnly fallback={<div className="h-[70vh] w-full rounded-xl border bg-gray-50 flex items-center justify-center text-gray-500">Loading canvas...</div>}>
+      <ReactFlowProvider>
+        <CanvasInner />
+      </ReactFlowProvider>
+    </ClientOnly>
   );
 }
