@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/app/page.tsx`: Landing page with demo scene link
 - `src/app/app/[scene]/page.tsx`: Dynamic scene editor with authentication gate
 - `src/components/`:
-  - `ModernDiagramCanvas.tsx`: Main canvas-based diagram editor (2300+ lines)
+  - `ModernDiagramCanvas.tsx`: Main canvas-based diagram editor (3800+ lines)
   - `AuthGate.tsx`: Firebase Google authentication wrapper with SSR safety
   - `ClientOnly.tsx`: Client-side rendering wrapper component
   - Animation components: `AnimationPanel.tsx`, `EdgeAnimationPanel.tsx`, `SimpleAnimationPanel.tsx`
@@ -103,9 +103,9 @@ The app requires these environment variables for Firebase:
 ## Development Workflows
 
 ### Node Types
-1. Update `NODE_TEMPLATES` array in `ModernDiagramCanvas.tsx:83-180`
+1. Update `NODE_TEMPLATES` array in `ModernDiagramCanvas.tsx:102-180`
 2. Add icon drawing logic in `drawNode` function around line 894-1011
-3. Update TypeScript `Node['type']` union type at line 12
+3. Update TypeScript `Node['type']` union type at line 14
 4. Test drag-and-drop creation and property editing
 
 ### Animation System
@@ -157,6 +157,102 @@ The app requires these environment variables for Firebase:
 - **Trail Effects**: CPU-intensive - use sparingly
 - **GSAP Integration**: Professional animation library for smooth performance
 - **Frame Counting**: Internal frame counter for animation timing
+
+## Code Patterns & Conventions
+
+### Component Architecture
+- **Client-Side Rendering**: All interactive components use `"use client"` directive (21 files)
+- **SSR Safety**: `ClientOnly` wrapper component prevents hydration mismatches
+- **Authentication Gate**: `AuthGate` component wraps Firebase auth with proper SSR handling
+- **Performance Optimization**: Heavy use of `useCallback`, `useMemo`, `useRef` (49 occurrences across components)
+
+### Hook Patterns
+- **Custom Hooks**: Extensive use of custom hooks for state management and side effects
+- **Animation Hooks**: Multiple specialized animation hooks (`useAnimationManager`, `useEdgeAnimations`, `useSimpleAnimations`)
+- **Real-time Hooks**: `usePresence` and `useCursorBroadcast` for collaborative features
+- **Cleanup Patterns**: Proper cleanup in `useEffect` returns and animation disposal
+
+### TypeScript Patterns
+- **Strong Typing**: 30+ interfaces defined across the codebase
+- **Union Types**: Extensive use for node types, shapes, animation configs
+- **Type Safety**: Strict TypeScript configuration with ES2022 target
+- **Interface Consistency**: Well-defined interfaces for complex objects (Node, Edge, Packet, etc.)
+
+### State Management
+- **Local State**: No external state library - pure React state management
+- **State Colocation**: State kept close to where it's used
+- **Optimistic Updates**: Real-time collaboration with immediate UI updates
+- **History Management**: Custom undo/redo implementation with 50-state limit
+
+### File Organization
+- **Feature-based**: Components grouped by functionality (animation, presence, canvas)
+- **Hook Separation**: Custom hooks in dedicated `src/hooks/` directory
+- **Type Definitions**: Centralized in `src/lib/animationTypes.ts`
+- **Configuration**: Firebase and app config in `src/lib/`
+
+## Real-time Collaboration
+
+### Presence System
+- **Firebase Realtime Database**: Used for live cursor positions and user presence
+- **Automatic Cleanup**: `onDisconnect()` handlers for graceful user departure
+- **Color Assignment**: Random color assignment from predefined palette
+- **Heartbeat System**: 30-second intervals to maintain presence
+
+### Cursor Broadcasting
+- **Performance Optimized**: `requestAnimationFrame` throttling for smooth cursor updates
+- **Viewport Aware**: Cursor positions relative to canvas container
+- **Visibility Handling**: Cursor hidden when user leaves page or window loses focus
+
+### Data Architecture
+```
+presence/{sceneId}/{userId}: {
+  name: string,
+  color: string,
+  cursor: { x: number, y: number } | null,
+  selection: string[],
+  ts: ServerTimestamp
+}
+```
+
+## Animation Architecture
+
+### Animation Strategies
+- **GSAP Integration**: Professional animation library for smooth motion
+- **Multiple Approaches**: Simple RequestAnimationFrame vs complex GSAP timelines
+- **Packet Animations**: Configurable particles flowing along edge paths
+- **Performance Monitoring**: Extensive console logging for debugging (71 log statements)
+
+### Animation Types
+1. **Edge Animations**: Packets flowing along connection paths with bezier curves
+2. **Simple Animations**: Basic linear motion with RequestAnimationFrame
+3. **Path Animations**: Complex curved paths with control points
+4. **Overlay Animations**: UI element animations and transitions
+
+### Animation Cleanup
+- **Memory Management**: Proper timeline disposal and element removal
+- **Animation Tracking**: Active animation maps for lifecycle management
+- **Interval Cleanup**: Clear intervals on component unmount or animation stop
+
+## Development Best Practices
+
+### Component Guidelines
+1. **Always use `"use client"`** for interactive components
+2. **Wrap Firebase components** in `ClientOnly` to prevent SSR issues
+3. **Use `useCallback` extensively** for performance optimization
+4. **Implement proper cleanup** in useEffect returns
+5. **Console log animations** for debugging complex interactions
+
+### Animation Guidelines
+1. **Choose the right animation approach**: Simple RequestAnimationFrame for basic motion, GSAP for complex paths
+2. **Always clean up**: Remove DOM elements, clear intervals, dispose timelines
+3. **Use viewport transforms**: Account for canvas zoom/pan in coordinate calculations
+4. **Monitor performance**: Watch for memory leaks with many active animations
+
+### Firebase Integration
+1. **Environment variables**: Ensure all 5 `NEXT_PUBLIC_FB_*` variables are set
+2. **Realtime Database**: Separate from Firestore - used for presence only
+3. **Auth state handling**: Use `onAuthStateChanged` with proper cleanup
+4. **Offline handling**: `onDisconnect()` for graceful cleanup
 
 ## Testing & Debug
 

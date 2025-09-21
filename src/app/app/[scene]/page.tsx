@@ -1,5 +1,6 @@
 import ModernDiagramCanvas from "@/components/ModernDiagramCanvas";
 import ClientOnly from "@/components/ClientOnly";
+import AuthGate from "@/components/AuthGate";
 
 export default function ScenePage({ params }: { params: { scene: string } }) {
   return (
@@ -12,7 +13,9 @@ export default function ScenePage({ params }: { params: { scene: string } }) {
         </div>
       </div>
     }>
-      <ModernDiagramCanvas />
+      <AuthGate>
+        <ModernDiagramCanvas />
+      </AuthGate>
     </ClientOnly>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Palette, Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Lock, Users, Trash2, Plus } from 'lucide-react';
+import { Palette, Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit } from 'lucide-react';
+import { db, auth } from '@/lib/firestoreClient';
+import { signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { collection, addDoc, getDocs, doc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
 
 interface Node {
   id: string;
@@ -67,9 +70,26 @@ interface AnimationConfig {
   enabled: boolean;
 }
 
+interface NodeGroup {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  borderColor: string;
+  backgroundColor: string;
+  nodeIds: string[];
+  isCollapsed: boolean;
+  isVisible: boolean;
+  padding: number;
+}
+
 interface DiagramState {
   nodes: Node[];
   edges: Edge[];
+  groups: NodeGroup[];
   animationConfigs: Record<string, AnimationConfig>;
 }
 
@@ -303,6 +323,13 @@ const ModernDiagramCanvas = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+
+  // User state
+  const [user, setUser] = useState<User | null>(null);
+
+  // Groups state
+  const [groups, setGroups] = useState<NodeGroup[]>([]);
 
   // Viewport state for zoom and pan (client-side only)
   const [viewport, setViewport] = useState<ViewportState>({ x: 0, y: 0, zoom: 1 });
@@ -327,13 +354,112 @@ const ModernDiagramCanvas = () => {
   }, [viewport]);
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [activePanel, setActivePanel] = useState<'nodes' | 'edges' | 'animations' | 'templates'>('templates');
+  const [activePanel, setActivePanel] = useState<'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls'>('templates');
   const [draggedTemplate, setDraggedTemplate] = useState<NodeTemplate | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Connection state
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStart, setConnectionStart] = useState<{ nodeId: string; handle: 'input' | 'output' } | null>(null);
   const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    type: 'node' | 'edge' | 'canvas' | 'group';
+    targetId?: string
+  } | null>(null);
+
+  // Help panel state
+  const [showHelp, setShowHelp] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // Save/Load state
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [savedDiagrams, setSavedDiagrams] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Templates state
+  const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
+
+  // Predefined diagram templates
+  const DIAGRAM_TEMPLATES = [
+    {
+      id: 'microservices',
+      name: 'Microservices Architecture',
+      description: 'Basic microservices pattern with API gateway and services',
+      category: 'Architecture',
+      nodes: [
+        { id: 'gateway', x: 400, y: 100, width: 120, height: 80, type: 'api', label: 'API Gateway', color: '#3b82f6', borderColor: '#1e40af', isVisible: true },
+        { id: 'service1', x: 200, y: 250, width: 100, height: 80, type: 'service', label: 'User Service', color: '#10b981', borderColor: '#047857', isVisible: true },
+        { id: 'service2', x: 400, y: 250, width: 100, height: 80, type: 'service', label: 'Order Service', color: '#10b981', borderColor: '#047857', isVisible: true },
+        { id: 'service3', x: 600, y: 250, width: 100, height: 80, type: 'service', label: 'Payment Service', color: '#10b981', borderColor: '#047857', isVisible: true },
+        { id: 'db1', x: 200, y: 400, width: 100, height: 60, type: 'database', label: 'User DB', color: '#f59e0b', borderColor: '#d97706', isVisible: true },
+        { id: 'db2', x: 400, y: 400, width: 100, height: 60, type: 'database', label: 'Order DB', color: '#f59e0b', borderColor: '#d97706', isVisible: true },
+        { id: 'db3', x: 600, y: 400, width: 100, height: 60, type: 'database', label: 'Payment DB', color: '#f59e0b', borderColor: '#d97706', isVisible: true }
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'gateway', targetId: 'service1', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e2', sourceId: 'gateway', targetId: 'service2', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e3', sourceId: 'gateway', targetId: 'service3', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e4', sourceId: 'service1', targetId: 'db1', type: 'straight', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e5', sourceId: 'service2', targetId: 'db2', type: 'straight', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e6', sourceId: 'service3', targetId: 'db3', type: 'straight', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' }
+      ],
+      groups: []
+    },
+    {
+      id: 'three-tier',
+      name: 'Three-Tier Architecture',
+      description: 'Classic presentation, business logic, and data layers',
+      category: 'Architecture',
+      nodes: [
+        { id: 'web', x: 400, y: 100, width: 120, height: 80, type: 'frontend', label: 'Web Frontend', color: '#8b5cf6', borderColor: '#7c3aed', isVisible: true },
+        { id: 'app1', x: 300, y: 250, width: 100, height: 80, type: 'service', label: 'App Server 1', color: '#10b981', borderColor: '#047857', isVisible: true },
+        { id: 'app2', x: 500, y: 250, width: 100, height: 80, type: 'service', label: 'App Server 2', color: '#10b981', borderColor: '#047857', isVisible: true },
+        { id: 'lb', x: 400, y: 180, width: 100, height: 50, type: 'loadbalancer', label: 'Load Balancer', color: '#06b6d4', borderColor: '#0891b2', isVisible: true },
+        { id: 'db', x: 400, y: 400, width: 120, height: 80, type: 'database', label: 'Database', color: '#f59e0b', borderColor: '#d97706', isVisible: true }
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'web', targetId: 'lb', type: 'straight', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e2', sourceId: 'lb', targetId: 'app1', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e3', sourceId: 'lb', targetId: 'app2', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e4', sourceId: 'app1', targetId: 'db', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e5', sourceId: 'app2', targetId: 'db', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' }
+      ],
+      groups: [
+        { id: 'presentation', label: 'Presentation Layer', x: 350, y: 80, width: 220, height: 120, color: '#8b5cf6', borderColor: '#7c3aed', backgroundColor: 'rgba(139, 92, 246, 0.1)', nodeIds: ['web', 'lb'], isCollapsed: false, isVisible: true, padding: 20 },
+        { id: 'business', label: 'Business Logic Layer', x: 280, y: 220, width: 340, height: 130, color: '#10b981', borderColor: '#047857', backgroundColor: 'rgba(16, 185, 129, 0.1)', nodeIds: ['app1', 'app2'], isCollapsed: false, isVisible: true, padding: 20 },
+        { id: 'data', label: 'Data Layer', x: 360, y: 380, width: 200, height: 120, color: '#f59e0b', borderColor: '#d97706', backgroundColor: 'rgba(245, 158, 11, 0.1)', nodeIds: ['db'], isCollapsed: false, isVisible: true, padding: 20 }
+      ]
+    },
+    {
+      id: 'serverless',
+      name: 'Serverless Architecture',
+      description: 'Event-driven serverless pattern with functions and managed services',
+      category: 'Cloud',
+      nodes: [
+        { id: 'client', x: 100, y: 200, width: 100, height: 80, type: 'frontend', label: 'Client App', color: '#8b5cf6', borderColor: '#7c3aed', isVisible: true },
+        { id: 'cdn', x: 300, y: 100, width: 100, height: 60, type: 'cloud', label: 'CDN', color: '#06b6d4', borderColor: '#0891b2', isVisible: true },
+        { id: 'apigateway', x: 300, y: 200, width: 100, height: 80, type: 'api', label: 'API Gateway', color: '#3b82f6', borderColor: '#1e40af', isVisible: true },
+        { id: 'lambda1', x: 500, y: 150, width: 80, height: 60, type: 'function', label: 'Auth Function', color: '#f97316', borderColor: '#ea580c', isVisible: true },
+        { id: 'lambda2', x: 500, y: 250, width: 80, height: 60, type: 'function', label: 'Data Function', color: '#f97316', borderColor: '#ea580c', isVisible: true },
+        { id: 'dynamodb', x: 700, y: 200, width: 100, height: 80, type: 'database', label: 'DynamoDB', color: '#f59e0b', borderColor: '#d97706', isVisible: true },
+        { id: 's3', x: 500, y: 350, width: 80, height: 60, type: 'storage', label: 'S3 Storage', color: '#84cc16', borderColor: '#65a30d', isVisible: true }
+      ],
+      edges: [
+        { id: 'e1', sourceId: 'client', targetId: 'cdn', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: 'Static Assets' },
+        { id: 'e2', sourceId: 'client', targetId: 'apigateway', type: 'straight', color: '#64748b', strokeWidth: 2, isVisible: true, label: 'API Calls' },
+        { id: 'e3', sourceId: 'apigateway', targetId: 'lambda1', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e4', sourceId: 'apigateway', targetId: 'lambda2', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e5', sourceId: 'lambda2', targetId: 'dynamodb', type: 'straight', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' },
+        { id: 'e6', sourceId: 'lambda2', targetId: 's3', type: 'bezier', color: '#64748b', strokeWidth: 2, isVisible: true, label: '' }
+      ],
+      groups: []
+    }
+  ];
 
   const [animationConfigs, setAnimationConfigs] = useState<Record<string, AnimationConfig>>({});
 
@@ -347,6 +473,7 @@ const ModernDiagramCanvas = () => {
     const currentState: DiagramState = {
       nodes: nodes,
       edges: edges,
+      groups: groups,
       animationConfigs: animationConfigs
     };
 
@@ -367,6 +494,7 @@ const ModernDiagramCanvas = () => {
       const prevState = history[historyIndex - 1];
       setNodes(prevState.nodes);
       setEdges(prevState.edges);
+      setGroups(prevState.groups || []);
       setAnimationConfigs(prevState.animationConfigs);
       setHistoryIndex(prev => prev - 1);
     }
@@ -379,6 +507,7 @@ const ModernDiagramCanvas = () => {
       const nextState = history[historyIndex + 1];
       setNodes(nextState.nodes);
       setEdges(nextState.edges);
+      setGroups(nextState.groups || []);
       setAnimationConfigs(nextState.animationConfigs);
       setHistoryIndex(prev => prev + 1);
     }
@@ -580,6 +709,11 @@ const ModernDiagramCanvas = () => {
       setEdges(prev => prev.filter(edge =>
         !selectedNodes.has(edge.sourceId) && !selectedNodes.has(edge.targetId)
       ));
+      // Remove nodes from groups
+      setGroups(prev => prev.map(group => ({
+        ...group,
+        nodeIds: group.nodeIds.filter(nodeId => !selectedNodes.has(nodeId))
+      })).filter(group => group.nodeIds.length > 0)); // Remove empty groups
       setSelectedNodes(new Set());
       setSelectedNode(null);
     } else if (selectedNode) {
@@ -589,14 +723,258 @@ const ModernDiagramCanvas = () => {
       setEdges(prev => prev.filter(edge =>
         edge.sourceId !== selectedNode && edge.targetId !== selectedNode
       ));
+      // Remove node from groups
+      setGroups(prev => prev.map(group => ({
+        ...group,
+        nodeIds: group.nodeIds.filter(nodeId => nodeId !== selectedNode)
+      })).filter(group => group.nodeIds.length > 0)); // Remove empty groups
       setSelectedNode(null);
     } else if (selectedEdge) {
       // Delete selected edge
       setEdges(prev => prev.filter(edge => edge.id !== selectedEdge));
       setSelectedEdge(null);
+    } else if (selectedGroup) {
+      // Delete selected group (but keep nodes)
+      setGroups(prev => prev.filter(group => group.id !== selectedGroup));
+      setSelectedGroup(null);
     }
     saveToHistory();
-  }, [selectedNodes, selectedNode, selectedEdge, saveToHistory]);
+  }, [selectedNodes, selectedNode, selectedEdge, selectedGroup, saveToHistory]);
+
+  // Group management functions
+  const createGroupFromSelected = useCallback(() => {
+    if (selectedNodes.size < 2) return; // Need at least 2 nodes to create a group
+
+    const selectedNodesList = Array.from(selectedNodes);
+    const groupNodes = nodes.filter(node => selectedNodes.has(node.id));
+
+    if (groupNodes.length === 0) return;
+
+    // Calculate bounding box for the group
+    const padding = 20;
+    const minX = Math.min(...groupNodes.map(node => node.x)) - padding;
+    const minY = Math.min(...groupNodes.map(node => node.y)) - padding;
+    const maxX = Math.max(...groupNodes.map(node => node.x + node.width)) + padding;
+    const maxY = Math.max(...groupNodes.map(node => node.y + node.height)) + padding;
+
+    const newGroup: NodeGroup = {
+      id: `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      label: `Group ${groups.length + 1}`,
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      color: '#3b82f6',
+      borderColor: '#1e40af',
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      nodeIds: selectedNodesList,
+      isCollapsed: false,
+      isVisible: true,
+      padding
+    };
+
+    setGroups(prev => [...prev, newGroup]);
+    setSelectedGroup(newGroup.id);
+    setSelectedNodes(new Set());
+    setSelectedNode(null);
+    saveToHistory();
+  }, [selectedNodes, nodes, groups.length, saveToHistory]);
+
+  const ungroupSelected = useCallback(() => {
+    if (!selectedGroup) return;
+
+    setGroups(prev => prev.filter(group => group.id !== selectedGroup));
+    setSelectedGroup(null);
+    saveToHistory();
+  }, [selectedGroup, saveToHistory]);
+
+  const updateGroupBounds = useCallback((groupId: string) => {
+    setGroups(prev => prev.map(group => {
+      if (group.id !== groupId) return group;
+
+      const groupNodes = nodes.filter(node => group.nodeIds.includes(node.id));
+      if (groupNodes.length === 0) return group;
+
+      const padding = group.padding;
+      const minX = Math.min(...groupNodes.map(node => node.x)) - padding;
+      const minY = Math.min(...groupNodes.map(node => node.y)) - padding;
+      const maxX = Math.max(...groupNodes.map(node => node.x + node.width)) + padding;
+      const maxY = Math.max(...groupNodes.map(node => node.y + node.height)) + padding;
+
+      return {
+        ...group,
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }));
+  }, [nodes]);
+
+  // Save/Load functions
+  const saveDiagram = useCallback(async (name: string, description: string = '') => {
+    const user = auth.currentUser;
+    if (!user) {
+      alert('Please sign in to save diagrams');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const diagramData = {
+        name,
+        description,
+        nodes,
+        edges,
+        groups,
+        animationConfigs,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        userId: user.uid,
+        userEmail: user.email
+      };
+
+      const docRef = await addDoc(collection(db, 'diagrams'), diagramData);
+      console.log('Diagram saved with ID: ', docRef.id);
+      alert('Diagram saved successfully!');
+      setShowSaveDialog(false);
+      loadSavedDiagrams(); // Refresh the list
+    } catch (error) {
+      console.error('Error saving diagram: ', error);
+      alert('Failed to save diagram. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [nodes, edges, groups, animationConfigs]);
+
+  const loadSavedDiagrams = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setIsLoading(true);
+    try {
+      const q = query(
+        collection(db, 'diagrams'),
+        where('userId', '==', user.uid),
+        orderBy('updatedAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const diagrams = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSavedDiagrams(diagrams);
+    } catch (error) {
+      console.error('Error loading diagrams: ', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadDiagram = useCallback(async (diagramId: string) => {
+    const diagram = savedDiagrams.find(d => d.id === diagramId);
+    if (!diagram) return;
+
+    // Clear current state
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setSelectedGroup(null);
+    setSelectedNodes(new Set());
+
+    // Load diagram data
+    setNodes(diagram.nodes || []);
+    setEdges(diagram.edges || []);
+    setGroups(diagram.groups || []);
+    setAnimationConfigs(diagram.animationConfigs || {});
+
+    // Reset viewport
+    setViewport({ x: 0, y: 0, zoom: 1 });
+
+    // Save to history for undo/redo
+    saveToHistory();
+
+    setShowLoadDialog(false);
+    alert(`Loaded diagram: ${diagram.name}`);
+  }, [savedDiagrams, saveToHistory]);
+
+  const deleteDiagram = useCallback(async (diagramId: string) => {
+    if (!confirm('Are you sure you want to delete this diagram?')) return;
+
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, 'diagrams', diagramId));
+      loadSavedDiagrams(); // Refresh the list
+      alert('Diagram deleted successfully');
+    } catch (error) {
+      console.error('Error deleting diagram: ', error);
+      alert('Failed to delete diagram');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loadSavedDiagrams]);
+
+  const loadTemplate = useCallback((templateId: string) => {
+    const template = DIAGRAM_TEMPLATES.find(t => t.id === templateId);
+    if (!template) return;
+
+    // Clear current state
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setSelectedGroup(null);
+    setSelectedNodes(new Set());
+
+    // Load template data with unique IDs
+    const uniqueNodes = template.nodes.map(node => ({
+      ...node,
+      id: `${node.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`
+    }));
+
+    const nodeIdMap = new Map(template.nodes.map((node, i) => [node.id, uniqueNodes[i].id]));
+
+    const uniqueEdges = template.edges.map(edge => ({
+      ...edge,
+      id: `${edge.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      sourceId: nodeIdMap.get(edge.sourceId) || edge.sourceId,
+      targetId: nodeIdMap.get(edge.targetId) || edge.targetId
+    }));
+
+    const uniqueGroups = template.groups.map(group => ({
+      ...group,
+      id: `${group.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      nodeIds: group.nodeIds.map(nodeId => nodeIdMap.get(nodeId) || nodeId)
+    }));
+
+    setNodes(uniqueNodes);
+    setEdges(uniqueEdges);
+    setGroups(uniqueGroups);
+    setAnimationConfigs({});
+
+    // Reset viewport
+    setViewport({ x: 0, y: 0, zoom: 1 });
+
+    // Save to history for undo/redo
+    saveToHistory();
+
+    setShowTemplatesDialog(false);
+    alert(`Loaded template: ${template.name}`);
+  }, [DIAGRAM_TEMPLATES, saveToHistory]);
+
+  // Auth state listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Load saved diagrams when component mounts
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (user) {
+      loadSavedDiagrams();
+    }
+  }, [loadSavedDiagrams]);
 
   // Create edge between nodes
   const createEdge = useCallback((sourceId: string, targetId: string) => {
@@ -726,6 +1104,12 @@ const ModernDiagramCanvas = () => {
             e.preventDefault();
             duplicateSelected();
             break;
+          case 'g':
+            e.preventDefault();
+            if (selectedNodes.size >= 2) {
+              createGroupFromSelected();
+            }
+            break;
           case '0':
             e.preventDefault();
             // Reset zoom and pan
@@ -739,11 +1123,23 @@ const ModernDiagramCanvas = () => {
         e.preventDefault();
         deleteSelected();
       }
+
+      // Handle help toggle
+      if (e.key === '?' || e.key === 'F1') {
+        e.preventDefault();
+        setShowHelp(prev => !prev);
+      }
+
+      // Handle escape key
+      if (e.key === 'Escape') {
+        setShowHelp(false);
+        setContextMenu(null);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, exportAsJSON, duplicateSelected, deleteSelected]);
+  }, [undo, redo, exportAsJSON, duplicateSelected, deleteSelected, createGroupFromSelected, selectedNodes.size]);
 
   // Client-side initialization
   useEffect(() => {
@@ -834,21 +1230,59 @@ const ModernDiagramCanvas = () => {
       ctx.shadowOffsetY = 4;
     }
 
-    // Selection highlight
+    // Selection highlight with enhanced visuals
     if (isSelected) {
-      ctx.fillStyle = '#3b82f6';
-      ctx.globalAlpha = 0.2;
-      const padding = 4;
+      const padding = 6;
+
+      // Outer glow effect
+      ctx.shadowColor = '#3b82f6';
+      ctx.shadowBlur = 15;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Selection border
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 4]);
 
       if (shape === 'circle') {
         const radius = Math.max(width, height) / 2 + padding;
         ctx.beginPath();
         ctx.arc(x + width / 2, y + height / 2, radius, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx.stroke();
+      } else if (shape === 'rounded') {
+        const cornerRadius = 12 + padding;
+        ctx.beginPath();
+        ctx.roundRect(x - padding, y - padding, width + padding * 2, height + padding * 2, cornerRadius);
+        ctx.stroke();
       } else {
-        ctx.fillRect(x - padding, y - padding, width + padding * 2, height + padding * 2);
+        ctx.strokeRect(x - padding, y - padding, width + padding * 2, height + padding * 2);
       }
-      ctx.globalAlpha = 1;
+
+      // Reset effects
+      ctx.setLineDash([]);
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+
+      // Selection handles (corner indicators)
+      const handleSize = 8;
+      ctx.fillStyle = '#3b82f6';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+
+      const handles = [
+        { x: x - padding, y: y - padding }, // top-left
+        { x: x + width + padding, y: y - padding }, // top-right
+        { x: x - padding, y: y + height + padding }, // bottom-left
+        { x: x + width + padding, y: y + height + padding } // bottom-right
+      ];
+
+      handles.forEach(handle => {
+        ctx.beginPath();
+        ctx.arc(handle.x, handle.y, handleSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      });
     }
 
     // Main shape
@@ -1127,6 +1561,91 @@ const ModernDiagramCanvas = () => {
     ctx.fillText(edge.label, midX, midY + 4);
   };
 
+  // Draw group container
+  const drawGroup = (ctx: CanvasRenderingContext2D, group: NodeGroup, isSelected = false) => {
+    if (!group.isVisible) return;
+
+    const { x, y, width, height, label, color, borderColor, backgroundColor } = group;
+
+    // Group background
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(x, y, width, height);
+
+    // Group border
+    ctx.strokeStyle = isSelected ? '#ef4444' : borderColor;
+    ctx.lineWidth = isSelected ? 3 : 2;
+
+    if (isSelected) {
+      ctx.setLineDash([8, 4]);
+    }
+
+    ctx.strokeRect(x, y, width, height);
+    ctx.setLineDash([]);
+
+    // Group label background
+    const labelPadding = 8;
+    const labelHeight = 24;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, Math.max(100, ctx.measureText(label).width + labelPadding * 2), labelHeight);
+
+    // Group label text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '12px Inter, sans-serif';
+    ctx.fontWeight = '600';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, x + labelPadding, y + 16);
+
+    // Collapse/expand indicator
+    const indicatorSize = 12;
+    const indicatorX = x + width - indicatorSize - 8;
+    const indicatorY = y + 6;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fillRect(indicatorX, indicatorY, indicatorSize, indicatorSize);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(indicatorX, indicatorY, indicatorSize, indicatorSize);
+
+    // Draw collapse/expand icon
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (group.isCollapsed) {
+      // Plus icon
+      ctx.moveTo(indicatorX + 3, indicatorY + 6);
+      ctx.lineTo(indicatorX + 9, indicatorY + 6);
+      ctx.moveTo(indicatorX + 6, indicatorY + 3);
+      ctx.lineTo(indicatorX + 6, indicatorY + 9);
+    } else {
+      // Minus icon
+      ctx.moveTo(indicatorX + 3, indicatorY + 6);
+      ctx.lineTo(indicatorX + 9, indicatorY + 6);
+    }
+    ctx.stroke();
+
+    // Selection handles for groups
+    if (isSelected) {
+      const handleSize = 8;
+      ctx.fillStyle = '#ef4444';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+
+      const handles = [
+        { x: x, y: y }, // top-left
+        { x: x + width, y: y }, // top-right
+        { x: x, y: y + height }, // bottom-left
+        { x: x + width, y: y + height } // bottom-right
+      ];
+
+      handles.forEach(handle => {
+        ctx.beginPath();
+        ctx.arc(handle.x, handle.y, handleSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+  };
+
   // Draw packet with shape support
   const drawPacket = (ctx: CanvasRenderingContext2D, packet: Packet) => {
     const { x, y, size, color, shape, trail } = packet;
@@ -1249,14 +1768,26 @@ const ModernDiagramCanvas = () => {
       ctx.stroke();
     }
 
+    // Draw groups (background layer)
+    groups.forEach(group => {
+      drawGroup(ctx, group, group.id === selectedGroup);
+    });
+
     // Draw edges
     edges.forEach(edge => {
       drawEdge(ctx, edge, edge.id === selectedEdge);
     });
 
-    // Draw nodes
+    // Draw nodes (only visible ones, and hide collapsed group nodes)
     nodes.forEach(node => {
-      drawNode(ctx, node, node.id === selectedNode);
+      // Check if node is in a collapsed group
+      const parentGroup = groups.find(group =>
+        group.nodeIds.includes(node.id) && group.isCollapsed
+      );
+
+      if (!parentGroup) {
+        drawNode(ctx, node, node.id === selectedNode);
+      }
     });
 
     // Draw packets
@@ -1304,7 +1835,7 @@ const ModernDiagramCanvas = () => {
 
     // Restore context
     ctx.restore();
-  }, [nodes, edges, packets, selectedNode, selectedEdge, selectedNodes, viewport, isConnecting, connectionStart, connectionPreview, drawNode, drawEdge, drawPacket]);
+  }, [nodes, edges, groups, packets, selectedNode, selectedEdge, selectedNodes, selectedGroup, viewport, isConnecting, connectionStart, connectionPreview, drawNode, drawEdge, drawGroup, drawPacket]);
 
   // Animation loop
   const animate = useCallback(() => {
@@ -1386,6 +1917,72 @@ const ModernDiagramCanvas = () => {
     const screenY = event.clientY - rect.top;
     const worldPos = screenToWorld(screenX, screenY);
 
+    // Handle right-click context menu
+    if (event.button === 2) {
+      event.preventDefault();
+
+      // Check if right-clicking on a group first
+      for (const group of groups) {
+        if (group.isVisible &&
+            worldPos.x >= group.x && worldPos.x <= group.x + group.width &&
+            worldPos.y >= group.y && worldPos.y <= group.y + group.height) {
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            type: 'group',
+            targetId: group.id
+          });
+          return;
+        }
+      }
+
+      // Check if right-clicking on a node
+      for (const node of nodes) {
+        if (node.isVisible &&
+            worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
+            worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            type: 'node',
+            targetId: node.id
+          });
+          return;
+        }
+      }
+
+      // Check if right-clicking on an edge
+      for (const edge of edges) {
+        if (!edge.isVisible) continue;
+        const points = getConnectionPoints(edge);
+        if (!points) continue;
+        const { startX, startY, endX, endY } = points;
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
+        if (distance < 40 / viewport.zoom) {
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            type: 'edge',
+            targetId: edge.id
+          });
+          return;
+        }
+      }
+
+      // Right-clicking on canvas
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        type: 'canvas'
+      });
+      return;
+    }
+
+    // Close context menu on any left click
+    setContextMenu(null);
+
     // Middle mouse button or Space+click for panning
     if (event.button === 1 || (event.button === 0 && event.spaceKey)) {
       setIsPanning(true);
@@ -1421,6 +2018,48 @@ const ModernDiagramCanvas = () => {
       }
     }
 
+    // Check for group selection first (groups are behind nodes)
+    for (const group of groups.slice().reverse()) { // Reverse to check top groups first
+      if (group.isVisible &&
+          worldPos.x >= group.x && worldPos.x <= group.x + group.width &&
+          worldPos.y >= group.y && worldPos.y <= group.y + group.height) {
+
+        // Check if clicking on collapse/expand button
+        const indicatorSize = 12;
+        const indicatorX = group.x + group.width - indicatorSize - 8;
+        const indicatorY = group.y + 6;
+
+        if (worldPos.x >= indicatorX && worldPos.x <= indicatorX + indicatorSize &&
+            worldPos.y >= indicatorY && worldPos.y <= indicatorY + indicatorSize) {
+          // Toggle collapse/expand
+          setGroups(prev => prev.map(g =>
+            g.id === group.id ? { ...g, isCollapsed: !g.isCollapsed } : g
+          ));
+          return;
+        }
+
+        // Check if clicking on a node within the group instead
+        let clickedNode = false;
+        for (const node of nodes) {
+          if (node.isVisible &&
+              worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
+              worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
+            clickedNode = true;
+            break;
+          }
+        }
+
+        if (!clickedNode) {
+          // Select the group
+          setSelectedGroup(group.id);
+          setSelectedNode(null);
+          setSelectedEdge(null);
+          setSelectedNodes(new Set());
+          return;
+        }
+      }
+    }
+
     // Check for node selection
     for (const node of nodes) {
       if (node.isVisible &&
@@ -1446,6 +2085,7 @@ const ModernDiagramCanvas = () => {
         } else {
           setSelectedNode(node.id);
           setSelectedEdge(null);
+          setSelectedGroup(null);
           setSelectedNodes(new Set([node.id]));
         }
 
@@ -1470,6 +2110,7 @@ const ModernDiagramCanvas = () => {
       if (distance < 40 / viewport.zoom) {
         setSelectedEdge(edge.id);
         setSelectedNode(null);
+        setSelectedGroup(null);
         setSelectedNodes(new Set());
         return;
       }
@@ -1478,6 +2119,7 @@ const ModernDiagramCanvas = () => {
     if (!event.ctrlKey && !event.metaKey) {
       setSelectedNode(null);
       setSelectedEdge(null);
+      setSelectedGroup(null);
       setSelectedNodes(new Set());
     }
 
@@ -1486,6 +2128,12 @@ const ModernDiagramCanvas = () => {
       setIsConnecting(false);
       setConnectionStart(null);
       setConnectionPreview(null);
+    }
+
+    // Start panning if left mouse button on empty space
+    if (event.button === 0) {
+      setIsPanning(true);
+      setLastPanPoint({ x: screenX, y: screenY });
     }
   };
 
@@ -1583,7 +2231,7 @@ const ModernDiagramCanvas = () => {
   return (
     <div className="h-screen w-screen bg-gray-50 flex overflow-hidden">
       {/* Left Sidebar */}
-      <div className="w-96 bg-white border-r border-gray-200 flex flex-col min-h-0">
+      <div className="w-[480px] bg-white border-r border-gray-200 flex flex-col min-h-0">
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-200 flex-shrink-0 bg-white z-20">
           <div className="flex items-center gap-2 mb-4">
@@ -1594,17 +2242,19 @@ const ModernDiagramCanvas = () => {
           </div>
 
           {/* Panel Tabs */}
-          <div className="flex rounded-lg bg-gray-100 p-1">
+          <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-2">
             {[
               { id: 'templates', label: 'Items', icon: Palette },
+              { id: 'groups', label: 'Groups', icon: Layers },
               { id: 'animations', label: 'Animate', icon: Play },
-              { id: 'nodes', label: 'Nodes', icon: Circle },
-              { id: 'edges', label: 'Edge', icon: Settings }
+              { id: 'nodes', label: 'Node', icon: Circle },
+              { id: 'edges', label: 'Edge', icon: Settings },
+              { id: 'controls', label: 'Controls', icon: HelpCircle }
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActivePanel(id as any)}
-                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
                   activePanel === id
                     ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
@@ -1623,15 +2273,53 @@ const ModernDiagramCanvas = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">Node Templates</h3>
-                <div className="text-xs text-gray-500">{NODE_TEMPLATES.length} available</div>
+                <div className="text-xs text-gray-500">
+                  {NODE_TEMPLATES.filter(template =>
+                    template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    template.description.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).length} / {NODE_TEMPLATES.length}
+                </div>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search templates..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-3 py-2 pl-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div className="absolute left-2.5 top-2.5 text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               <p className="text-xs text-gray-600">
                 Drag templates onto the canvas to create new nodes
               </p>
 
-              <div className="grid grid-cols-1 gap-2 max-h-80 overflow-y-auto">
-                {NODE_TEMPLATES.map((template) => {
+              <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto">
+                {NODE_TEMPLATES
+                  .filter(template =>
+                    template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    template.description.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map((template) => {
                   const Icon = template.icon;
                   return (
                     <div
@@ -1684,7 +2372,7 @@ const ModernDiagramCanvas = () => {
                 </div>
               )}
 
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
                 {edges.map(edge => {
                 const config = animationConfigs[edge.id];
                 if (!config) return null;
@@ -1835,7 +2523,7 @@ const ModernDiagramCanvas = () => {
           )}
 
           {activePanel === 'nodes' && selectedNode && (
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {(() => {
                 const node = nodes.find(n => n.id === selectedNode);
                 if (!node) return null;
@@ -1996,7 +2684,7 @@ const ModernDiagramCanvas = () => {
           )}
 
           {activePanel === 'edges' && selectedEdge && (
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {(() => {
                 const edge = edges.find(e => e.id === selectedEdge);
                 if (!edge) return null;
@@ -2109,7 +2797,197 @@ const ModernDiagramCanvas = () => {
             </div>
           )}
 
-          {!selectedNode && !selectedEdge && activePanel !== 'animations' && activePanel !== 'templates' && (
+          {activePanel === 'groups' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">Node Groups</h3>
+                <div className="text-xs text-gray-500">{groups.length} groups</div>
+              </div>
+
+              {selectedNodes.size >= 2 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800 mb-3">
+                    {selectedNodes.size} nodes selected
+                  </p>
+                  <button
+                    onClick={createGroupFromSelected}
+                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 justify-center"
+                  >
+                    <Layers className="w-4 h-4" />
+                    Create Group
+                  </button>
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                {groups.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No groups created</p>
+                    <p className="text-xs text-gray-400">Select multiple nodes and click &quot;Create Group&quot;</p>
+                  </div>
+                ) : (
+                  groups.map((group) => (
+                    <div
+                      key={group.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedGroup === group.id
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => {
+                        setSelectedGroup(group.id);
+                        setSelectedNode(null);
+                        setSelectedEdge(null);
+                        setSelectedNodes(new Set());
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div
+                          className="w-3 h-3 rounded border"
+                          style={{ backgroundColor: group.color }}
+                        />
+                        <span className="text-sm font-medium">{group.label}</span>
+                        <span className="text-xs text-gray-500 ml-auto">
+                          {group.nodeIds.length} nodes
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <span>{Math.round(group.width)} × {Math.round(group.height)}</span>
+                        {group.isCollapsed && <span className="text-orange-600">Collapsed</span>}
+                      </div>
+
+                      {selectedGroup === group.id && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setGroups(prev => prev.map(g =>
+                                  g.id === group.id ? { ...g, isCollapsed: !g.isCollapsed } : g
+                                ));
+                              }}
+                              className="flex-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 transition-colors"
+                            >
+                              {group.isCollapsed ? 'Expand' : 'Collapse'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                ungroupSelected();
+                              }}
+                              className="flex-1 px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 transition-colors"
+                            >
+                              Ungroup
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Controls Panel */}
+          {activePanel === 'controls' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">Keyboard Shortcuts</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">Canvas Navigation</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Pan canvas</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Click + drag</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Zoom in/out</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Mouse wheel</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Reset view</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + 0</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">Node Operations</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Duplicate selection</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + D</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Delete selection</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Delete</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Group nodes</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + G</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Multi-select</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + click</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">File Operations</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Export JSON</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + S</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Undo</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + Z</kbd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Redo</span>
+                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + Y</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">Mouse Controls</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Create connection</span>
+                      <span className="text-gray-500 text-xs">Click node handles</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Add nodes</span>
+                      <span className="text-gray-500 text-xs">Drag from sidebar</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Move nodes</span>
+                      <span className="text-gray-500 text-xs">Click and drag</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <HelpCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-blue-700">
+                    <strong>Pro Tip:</strong> Press <kbd className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">?</kbd> or <kbd className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">F1</kbd> anytime to open the full help dialog with more detailed instructions.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!selectedNode && !selectedEdge && !selectedGroup && activePanel !== 'animations' && activePanel !== 'templates' && activePanel !== 'groups' && activePanel !== 'controls' && (
             <div className="text-center text-gray-500 py-12">
               <div className="mb-3">
                 {activePanel === 'nodes' ? <Circle className="w-8 h-8 mx-auto mb-2 opacity-50" /> : <Settings className="w-8 h-8 mx-auto mb-2 opacity-50" />}
@@ -2137,19 +3015,145 @@ const ModernDiagramCanvas = () => {
 
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        {/* Top Toolbar */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+        {/* Unified Toolbar */}
+        <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div>
+            {/* Left Side - Title */}
+            <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-gray-900">Architecture Diagram</h1>
-              <p className="text-sm text-gray-600">Drag templates to add nodes • Click handles to connect • Select and delete items • Mouse wheel to zoom • Ctrl+D to duplicate</p>
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Right Side - All Controls */}
+            <div className="flex items-center gap-2 ml-6">
+              {/* Quick Node Creation */}
+              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+                <button
+                  onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'service')!, 100, 100)}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title="Add Service Node"
+                >
+                  <Server className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'database')!, 150, 100)}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title="Add Database Node"
+                >
+                  <Database className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'cloud')!, 200, 100)}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title="Add Cloud Service"
+                >
+                  <Cloud className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Edit Actions */}
+              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+                <button
+                  onClick={undo}
+                  disabled={historyIndex <= 0}
+                  className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Undo (Ctrl+Z)"
+                >
+                  <Undo className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={redo}
+                  disabled={historyIndex >= history.length - 1}
+                  className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Redo (Ctrl+Y)"
+                >
+                  <Redo className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={duplicateSelected}
+                  disabled={!selectedNode && selectedNodes.size === 0}
+                  className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Duplicate Selection (Ctrl+D)"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={createGroupFromSelected}
+                  disabled={selectedNodes.size < 2}
+                  className="p-2 rounded-md hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-blue-600"
+                  title="Group Selected Nodes (Ctrl+G)"
+                >
+                  <Layers className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={deleteSelected}
+                  disabled={!selectedNode && !selectedEdge && !selectedGroup && selectedNodes.size === 0}
+                  className="p-2 rounded-md hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-red-600"
+                  title="Delete Selection (Del)"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* View Controls */}
+              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+                <button
+                  onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(3, prev.zoom * 1.2) }))}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewport(prev => ({ ...prev, zoom: Math.max(0.1, prev.zoom * 0.8) }))}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
+                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  title="Reset View (Ctrl+0)"
+                >
+                  <Maximize className="w-4 h-4" />
+                </button>
+                <div className="text-xs text-gray-500 px-2 min-w-[45px] text-center">
+                  {Math.round(viewport.zoom * 100)}%
+                </div>
+              </div>
+
+              {/* File Operations */}
+              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+                <button
+                  onClick={() => setShowSaveDialog(true)}
+                  className="p-2 rounded-md hover:bg-green-100 transition-colors text-green-600"
+                  title="Save Diagram to Cloud"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    loadSavedDiagrams();
+                    setShowLoadDialog(true);
+                  }}
+                  className="p-2 rounded-md hover:bg-blue-100 transition-colors text-blue-600"
+                  title="Load Diagram from Cloud"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setShowTemplatesDialog(true)}
+                  className="p-2 rounded-md hover:bg-purple-100 transition-colors text-purple-600"
+                  title="Load Template Diagram"
+                >
+                  <Layers className="w-4 h-4" />
+                </button>
+              </div>
+
               {/* Export Dropdown */}
               <div className="relative">
                 <button
-                  className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                  className="flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors text-sm font-medium"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
@@ -2202,68 +3206,119 @@ const ModernDiagramCanvas = () => {
                 </div>
               </div>
 
-              {/* Undo/Redo */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={undo}
-                  disabled={historyIndex <= 0}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  title="Undo (Ctrl+Z)"
-                >
-                  <Undo className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={redo}
-                  disabled={historyIndex >= history.length - 1}
-                  className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  title="Redo (Ctrl+Y)"
-                >
-                  <Redo className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Delete Button */}
+              {/* Help */}
               <button
-                onClick={deleteSelected}
-                disabled={!selectedNode && !selectedEdge && selectedNodes.size === 0}
-                className="p-2 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-red-600 hover:text-red-700"
-                title="Delete (Del)"
+                onClick={() => setShowHelp(true)}
+                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                title="Show Help (? key)"
               >
-                <Trash2 className="w-4 h-4" />
+                <HelpCircle className="w-4 h-4" />
               </button>
 
-              {/* Zoom Controls */}
-              <div className="flex items-center gap-1">
+              {/* Profile Menu */}
+              <div className="relative">
                 <button
-                  onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(3, prev.zoom * 1.2) }))}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  title="Zoom In"
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Profile Menu"
                 >
-                  <ZoomIn className="w-4 h-4" />
+                  {user?.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt="Profile"
+                      className="w-6 h-6 rounded-full"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-medium">
+                        {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                      </span>
+                    </div>
+                  )}
+                  <span className="text-sm text-gray-700 max-w-[120px] truncate">
+                    {user?.displayName || user?.email || 'User'}
+                  </span>
                 </button>
-                <button
-                  onClick={() => setViewport(prev => ({ ...prev, zoom: Math.max(0.1, prev.zoom * 0.8) }))}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  title="Reset View (Ctrl+0)"
-                >
-                  <Maximize className="w-4 h-4" />
-                </button>
-                <div className="text-xs text-gray-500 px-2">
-                  {Math.round(viewport.zoom * 100)}%
-                </div>
+
+                {showProfileMenu && (
+                  <div
+                    className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+                    onMouseLeave={() => setShowProfileMenu(false)}
+                  >
+                    <div className="p-4 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        {user?.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt="Profile"
+                            className="w-10 h-10 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <span className="text-white text-sm font-medium">
+                              {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {user?.displayName || 'User'}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {user?.email}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          // Navigate to dashboard
+                          window.location.href = '/';
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                      >
+                        <Palette className="w-4 h-4" />
+                        Dashboard
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setShowHelp(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                      >
+                        <HelpCircle className="w-4 h-4" />
+                        Help & Shortcuts
+                      </button>
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          signOut(auth);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                      >
+                        <X className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="text-sm text-gray-600">
-                Packets: <span className="font-medium text-gray-900">{packets.length}</span>
+              {/* Status */}
+              <div className="flex items-center gap-2 ml-2">
+                <div className="text-xs text-gray-600">
+                  Packets: <span className="font-medium text-gray-900">{packets.length}</span>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
               </div>
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
             </div>
           </div>
         </div>
@@ -2272,7 +3327,7 @@ const ModernDiagramCanvas = () => {
         <div className="flex-1 relative overflow-hidden">
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 w-full h-full bg-white cursor-pointer"
+            className={`absolute inset-0 w-full h-full bg-white ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -2280,7 +3335,615 @@ const ModernDiagramCanvas = () => {
             onWheel={handleWheel}
             onDrop={handleCanvasDrop}
             onDragOver={handleCanvasDragOver}
+            onContextMenu={(e) => e.preventDefault()}
           />
+
+          {/* Context Menu */}
+          {contextMenu && (
+            <div
+              className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onMouseLeave={() => setContextMenu(null)}
+            >
+              {contextMenu.type === 'node' && (
+                <>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        duplicateSelected();
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Duplicate Node
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setSelectedNode(contextMenu.targetId);
+                        setSelectedNodes(new Set([contextMenu.targetId]));
+                        deleteSelected();
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    Delete Node
+                  </button>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        const node = nodes.find(n => n.id === contextMenu.targetId);
+                        if (node) {
+                          setNodes(prev => prev.map(n =>
+                            n.id === contextMenu.targetId ? { ...n, isVisible: !n.isVisible } : n
+                          ));
+                        }
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Toggle Visibility
+                  </button>
+                </>
+              )}
+
+              {contextMenu.type === 'edge' && (
+                <>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setSelectedEdge(contextMenu.targetId);
+                        deleteSelected();
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    Delete Connection
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setAnimationConfigs(prev => ({
+                          ...prev,
+                          [contextMenu.targetId]: {
+                            ...prev[contextMenu.targetId],
+                            enabled: !prev[contextMenu.targetId]?.enabled
+                          }
+                        }));
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Play className="w-4 h-4" />
+                    Toggle Animation
+                  </button>
+                </>
+              )}
+
+              {contextMenu.type === 'group' && (
+                <>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setSelectedGroup(contextMenu.targetId);
+                        ungroupSelected();
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Square className="w-4 h-4" />
+                    Ungroup
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setGroups(prev => prev.map(group =>
+                          group.id === contextMenu.targetId
+                            ? { ...group, isCollapsed: !group.isCollapsed }
+                            : group
+                        ));
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Maximize className="w-4 h-4" />
+                    Toggle Collapse
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setGroups(prev => prev.map(group =>
+                          group.id === contextMenu.targetId
+                            ? { ...group, label: prompt('New group name:', group.label) || group.label }
+                            : group
+                        ));
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Edit className="w-4 h-4" />
+                    Rename Group
+                  </button>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      if (contextMenu.targetId) {
+                        setSelectedGroup(contextMenu.targetId);
+                        deleteSelected();
+                      }
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    Delete Group
+                  </button>
+                </>
+              )}
+
+              {contextMenu.type === 'canvas' && (
+                <>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      setViewport({ x: 0, y: 0, zoom: 1 });
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Maximize className="w-4 h-4" />
+                    Reset View
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      setPackets([]);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Square className="w-4 h-4" />
+                    Clear Animations
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Help Panel Overlay */}
+          {showHelp && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden mx-4">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Keyboard Shortcuts & Help</h2>
+                    <p className="text-sm text-gray-600">Master NexFlow with these shortcuts and tips</p>
+                  </div>
+                  <button
+                    onClick={() => setShowHelp(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Essential Shortcuts */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Essential Shortcuts</h3>
+                      <div className="space-y-3">
+                        {[
+                          { keys: ['Ctrl', 'Z'], desc: 'Undo action' },
+                          { keys: ['Ctrl', 'Y'], desc: 'Redo action' },
+                          { keys: ['Ctrl', 'S'], desc: 'Export as JSON' },
+                          { keys: ['Ctrl', 'D'], desc: 'Duplicate selection' },
+                          { keys: ['Ctrl', 'G'], desc: 'Group selected nodes' },
+                          { keys: ['Ctrl', '0'], desc: 'Reset zoom & pan' },
+                          { keys: ['Del'], desc: 'Delete selection' },
+                          { keys: ['?'], desc: 'Show this help' },
+                          { keys: ['Esc'], desc: 'Close dialogs/cancel' }
+                        ].map((shortcut, i) => (
+                          <div key={i} className="flex justify-between items-center">
+                            <div className="flex gap-1">
+                              {shortcut.keys.map((key, j) => (
+                                <span key={j} className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">
+                                  {key}
+                                </span>
+                              ))}
+                            </div>
+                            <span className="text-sm text-gray-600">{shortcut.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Mouse Controls */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Mouse Controls</h3>
+                      <div className="space-y-3">
+                        {[
+                          { action: 'Left Click', desc: 'Select nodes/edges' },
+                          { action: 'Ctrl + Click', desc: 'Multi-select nodes' },
+                          { action: 'Right Click', desc: 'Context menu' },
+                          { action: 'Click + Drag', desc: 'Pan canvas' },
+                          { action: 'Mouse Wheel', desc: 'Zoom in/out' },
+                          { action: 'Drag Templates', desc: 'Create new nodes' },
+                          { action: 'Click Node Handles', desc: 'Create connections' },
+                          { action: 'Click Minimap', desc: 'Navigate to area' }
+                        ].map((control, i) => (
+                          <div key={i} className="flex justify-between items-center">
+                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                              {control.action}
+                            </span>
+                            <span className="text-sm text-gray-600">{control.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Node Operations */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Node Operations</h3>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <p><strong>Creating Nodes:</strong> Drag templates from sidebar onto canvas</p>
+                        <p><strong>Connecting Nodes:</strong> Click blue connection handles on node edges</p>
+                        <p><strong>Moving Nodes:</strong> Drag nodes to reposition with grid snapping</p>
+                        <p><strong>Grouping:</strong> Select multiple nodes and press Ctrl+G</p>
+                        <p><strong>Editing:</strong> Select nodes to edit properties in sidebar</p>
+                      </div>
+                    </div>
+
+                    {/* Canvas Navigation */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Canvas Navigation</h3>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <p><strong>Zooming:</strong> Mouse wheel or toolbar zoom controls</p>
+                        <p><strong>Panning:</strong> Click and drag on empty space or use minimap</p>
+                        <p><strong>Reset View:</strong> Ctrl+0 or toolbar reset button</p>
+                        <p><strong>Minimap:</strong> Click anywhere to jump to that location</p>
+                        <p><strong>Grid Snapping:</strong> Nodes snap to 20px grid automatically</p>
+                      </div>
+                    </div>
+
+                    {/* Animation Features */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Animation Features</h3>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <p><strong>Packet Animations:</strong> Use Animate tab to configure flowing particles</p>
+                        <p><strong>Shapes & Colors:</strong> Customize animation appearance</p>
+                        <p><strong>Speed Control:</strong> Adjust animation timing and frequency</p>
+                        <p><strong>Trail Effects:</strong> Enable particle trails for visual impact</p>
+                      </div>
+                    </div>
+
+                    {/* Group Management */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Group Management</h3>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <p><strong>Creating Groups:</strong> Select 2+ nodes and use Ctrl+G</p>
+                        <p><strong>Collapse/Expand:</strong> Click +/- button on group</p>
+                        <p><strong>Ungrouping:</strong> Right-click group or use Groups tab</p>
+                        <p><strong>Group Properties:</strong> Use Groups tab to manage all groups</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tips Section */}
+                  <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 className="text-lg font-semibold mb-3 text-blue-900">💡 Pro Tips</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-blue-800">
+                      <p>• Use Ctrl+Click for multi-selection</p>
+                      <p>• Right-click for context menus</p>
+                      <p>• Groups help organize complex diagrams</p>
+                      <p>• Export JSON to save your work</p>
+                      <p>• Use search to find specific templates</p>
+                      <p>• Minimap makes navigation easier</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Press <kbd className="px-2 py-1 bg-gray-200 rounded">?</kbd> or <kbd className="px-2 py-1 bg-gray-200 rounded">F1</kbd> to toggle this help
+                    </div>
+                    <button
+                      onClick={() => setShowHelp(false)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Got it!
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Save Dialog */}
+          {showSaveDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+                <div className="p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Save Diagram</h2>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target as HTMLFormElement);
+                    const name = formData.get('name') as string;
+                    const description = formData.get('description') as string;
+                    if (name.trim()) {
+                      saveDiagram(name.trim(), description.trim());
+                    }
+                  }}>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Diagram Name *
+                        </label>
+                        <input
+                          type="text"
+                          name="name"
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="My Architecture Diagram"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Description (optional)
+                        </label>
+                        <textarea
+                          name="description"
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Brief description of your diagram..."
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setShowSaveDialog(false)}
+                        className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      >
+                        {isLoading ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Load Dialog */}
+          {showLoadDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] mx-4">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-900">Load Diagram</h2>
+                    <button
+                      onClick={() => setShowLoadDialog(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="text-gray-600 mt-2">Loading diagrams...</p>
+                    </div>
+                  ) : savedDiagrams.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FolderOpen className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-600">No saved diagrams found</p>
+                      <p className="text-sm text-gray-400">Create and save your first diagram!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {savedDiagrams.map((diagram) => (
+                        <div
+                          key={diagram.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h3 className="font-medium text-gray-900">{diagram.name}</h3>
+                              {diagram.description && (
+                                <p className="text-sm text-gray-600 mt-1">{diagram.description}</p>
+                              )}
+                              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                <span>{diagram.nodes?.length || 0} nodes</span>
+                                <span>{diagram.edges?.length || 0} connections</span>
+                                <span>{diagram.groups?.length || 0} groups</span>
+                                <span>
+                                  {diagram.updatedAt?.toDate?.()?.toLocaleDateString() || 'Unknown date'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 ml-4">
+                              <button
+                                onClick={() => loadDiagram(diagram.id)}
+                                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                              >
+                                Load
+                              </button>
+                              <button
+                                onClick={() => deleteDiagram(diagram.id)}
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Templates Dialog */}
+          {showTemplatesDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] mx-4">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">Diagram Templates</h2>
+                      <p className="text-sm text-gray-600">Start with a pre-built architecture pattern</p>
+                    </div>
+                    <button
+                      onClick={() => setShowTemplatesDialog(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {DIAGRAM_TEMPLATES.map((template) => (
+                      <div
+                        key={template.id}
+                        className="border border-gray-200 rounded-lg overflow-hidden hover:border-purple-300 hover:shadow-lg transition-all cursor-pointer"
+                        onClick={() => loadTemplate(template.id)}
+                      >
+                        {/* Template Preview */}
+                        <div className="h-32 bg-gradient-to-br from-purple-50 to-blue-50 p-4 flex items-center justify-center relative">
+                          <div className="text-center">
+                            <div className="w-16 h-16 mx-auto bg-purple-100 rounded-lg flex items-center justify-center mb-2">
+                              {template.category === 'Architecture' && <Server className="w-8 h-8 text-purple-600" />}
+                              {template.category === 'Cloud' && <Cloud className="w-8 h-8 text-purple-600" />}
+                              {template.category === 'Network' && <Network className="w-8 h-8 text-purple-600" />}
+                            </div>
+                          </div>
+                          <div className="absolute top-2 right-2">
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                              {template.category}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Template Info */}
+                        <div className="p-4">
+                          <h3 className="font-semibold text-gray-900 mb-2">{template.name}</h3>
+                          <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-3">
+                              <span>{template.nodes.length} nodes</span>
+                              <span>{template.edges.length} connections</span>
+                              {template.groups.length > 0 && <span>{template.groups.length} groups</span>}
+                            </div>
+                            <button className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors">
+                              Use
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Custom Section */}
+                  <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Create Your Own</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 hover:bg-purple-50 transition-colors cursor-pointer"
+                        onClick={() => {
+                          // Clear everything for blank canvas
+                          setNodes([]);
+                          setEdges([]);
+                          setGroups([]);
+                          setAnimationConfigs({});
+                          setSelectedNode(null);
+                          setSelectedEdge(null);
+                          setSelectedGroup(null);
+                          setSelectedNodes(new Set());
+                          setViewport({ x: 0, y: 0, zoom: 1 });
+                          saveToHistory();
+                          setShowTemplatesDialog(false);
+                        }}
+                      >
+                        <Plus className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                        <h4 className="font-medium text-gray-900">Blank Canvas</h4>
+                        <p className="text-sm text-gray-600">Start from scratch</p>
+                      </div>
+
+                      <div className="border border-gray-200 rounded-lg p-6 text-center bg-white">
+                        <FileJson className="w-8 h-8 mx-auto text-blue-500 mb-2" />
+                        <h4 className="font-medium text-gray-900">Import JSON</h4>
+                        <p className="text-sm text-gray-600 mb-3">Load exported diagram</p>
+                        <input
+                          type="file"
+                          accept=".json"
+                          className="hidden"
+                          id="import-json"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                try {
+                                  const data = JSON.parse(event.target?.result as string);
+                                  if (data.nodes && data.edges) {
+                                    setNodes(data.nodes || []);
+                                    setEdges(data.edges || []);
+                                    setGroups(data.groups || []);
+                                    setAnimationConfigs(data.animationConfigs || {});
+                                    setViewport({ x: 0, y: 0, zoom: 1 });
+                                    saveToHistory();
+                                    setShowTemplatesDialog(false);
+                                    alert('Diagram imported successfully!');
+                                  }
+                                } catch (error) {
+                                  alert('Invalid JSON file');
+                                }
+                              };
+                              reader.readAsText(file);
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="import-json"
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded cursor-pointer hover:bg-blue-700 transition-colors"
+                        >
+                          Choose File
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Minimap */}
           <div className="absolute bottom-6 right-6 w-48 h-36 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-10">
@@ -2290,7 +3953,29 @@ const ModernDiagramCanvas = () => {
                 <span className="text-xs font-medium text-gray-700">Minimap</span>
               </div>
             </div>
-            <div className="relative w-full h-28 bg-gradient-to-br from-blue-50 to-gray-100">
+            <div
+              className="relative w-full h-28 bg-gradient-to-br from-blue-50 to-gray-100 cursor-pointer"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+
+                // Convert minimap coordinates to world coordinates
+                const scale = 0.08;
+                const worldX = (clickX - 4) / scale;
+                const worldY = (clickY - 4) / scale;
+
+                // Center the viewport on the clicked position
+                const canvasRect = canvasRef.current?.getBoundingClientRect();
+                if (canvasRect) {
+                  setViewport(prev => ({
+                    ...prev,
+                    x: canvasRect.width / 2 - worldX * prev.zoom,
+                    y: canvasRect.height / 2 - worldY * prev.zoom
+                  }));
+                }
+              }}
+            >
               {/* Minimap nodes */}
               {nodes.filter(node => node.isVisible).map(node => {
                 const scale = 0.08; // Scale factor for minimap
@@ -2329,19 +4014,6 @@ const ModernDiagramCanvas = () => {
             </div>
           </div>
 
-          {/* Help overlay */}
-          <div className="absolute top-6 left-6 bg-white bg-opacity-90 rounded-lg p-3 shadow-sm text-xs text-gray-600 max-w-64 z-10">
-            <div className="font-medium mb-2">Controls:</div>
-            <div className="space-y-1">
-              <div>• <span className="font-medium">Drag templates:</span> Add nodes</div>
-              <div>• <span className="font-medium">Click handles:</span> Connect nodes</div>
-              <div>• <span className="font-medium">Mouse wheel:</span> Zoom</div>
-              <div>• <span className="font-medium">Middle click + drag:</span> Pan</div>
-              <div>• <span className="font-medium">Ctrl+click:</span> Multi-select</div>
-              <div>• <span className="font-medium">Delete key:</span> Remove items</div>
-              <div>• <span className="font-medium">Ctrl+D:</span> Duplicate</div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
