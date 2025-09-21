@@ -9,7 +9,7 @@ const COLORS = ["#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6","#06b6d4","#ec
 
 export function usePresence(sceneId: string) {
   const [uid, setUid] = useState<string | null>(null);
-  const [peers, setPeers] = useState<Record<string, any>>({});
+  const [peers, setPeers] = useState<Record<string, { cursor?: { x: number; y: number }; color?: string; email?: string }>>({});
   const colorRef = useRef<string>(COLORS[Math.floor(Math.random()*COLORS.length)]);
 
   // join/leave

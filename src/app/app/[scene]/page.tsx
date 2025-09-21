@@ -2,7 +2,7 @@ import ModernDiagramCanvas from "@/components/ModernDiagramCanvas";
 import ClientOnly from "@/components/ClientOnly";
 import AuthGate from "@/components/AuthGate";
 
-export default function ScenePage({ params }: { params: { scene: string } }) {
+export default function ScenePage() {
   return (
     <ClientOnly fallback={
       <div className="h-screen bg-gray-100 flex items-center justify-center">

@@ -26,7 +26,7 @@ export function useSimpleAnimations() {
   const [activeAnimations, setActiveAnimations] = useState<Map<string, AnimationState>>(new Map());
   const [animationIntervals, setAnimationIntervals] = useState<Map<string, NodeJS.Timeout>>(new Map());
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number>(0);
 
   // Create a simple packet element
   const createPacket = useCallback((config: SimplePacketConfig) => {

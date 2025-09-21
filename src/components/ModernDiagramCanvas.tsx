@@ -29,7 +29,7 @@ interface NodeTemplate {
   label: string;
   color: string;
   borderColor: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
   description: string;
 }
 
@@ -37,6 +37,8 @@ interface Edge {
   id: string;
   sourceId: string;
   targetId: string;
+  sourceHandle: 'input' | 'output' | 'top' | 'bottom';
+  targetHandle: 'input' | 'output' | 'top' | 'bottom';
   label: string;
   color: string;
   width: number;
@@ -282,6 +284,8 @@ const ModernDiagramCanvas = () => {
       id: 'e1',
       sourceId: 'svc',
       targetId: 'db',
+      sourceHandle: 'output',
+      targetHandle: 'input',
       label: 'writes',
       color: '#6b7280',
       width: 2,
@@ -295,6 +299,8 @@ const ModernDiagramCanvas = () => {
       id: 'e2',
       sourceId: 'api',
       targetId: 'svc',
+      sourceHandle: 'output',
+      targetHandle: 'input',
       label: 'requests',
       color: '#6b7280',
       width: 2,
@@ -308,6 +314,8 @@ const ModernDiagramCanvas = () => {
       id: 'e3',
       sourceId: 'svc',
       targetId: 'queue',
+      sourceHandle: 'output',
+      targetHandle: 'input',
       label: 'events',
       color: '#6b7280',
       width: 2,
@@ -345,13 +353,6 @@ const ModernDiagramCanvas = () => {
     };
   }, [viewport]);
 
-  // Transform coordinates from world to screen space
-  const worldToScreen = useCallback((worldX: number, worldY: number) => {
-    return {
-      x: worldX * viewport.zoom + viewport.x,
-      y: worldY * viewport.zoom + viewport.y
-    };
-  }, [viewport]);
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activePanel, setActivePanel] = useState<'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls'>('templates');
@@ -360,7 +361,7 @@ const ModernDiagramCanvas = () => {
 
   // Connection state
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStart, setConnectionStart] = useState<{ nodeId: string; handle: 'input' | 'output' } | null>(null);
+  const [connectionStart, setConnectionStart] = useState<{ nodeId: string; handle: 'input' | 'output' | 'top' | 'bottom' } | null>(null);
   const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
 
   // Context menu state
@@ -378,7 +379,7 @@ const ModernDiagramCanvas = () => {
   // Save/Load state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
-  const [savedDiagrams, setSavedDiagrams] = useState<any[]>([]);
+  const [savedDiagrams, setSavedDiagrams] = useState<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Templates state
@@ -862,7 +863,7 @@ const ModernDiagramCanvas = () => {
       const diagrams = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })) as { id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }[];
       setSavedDiagrams(diagrams);
     } catch (error) {
       console.error('Error loading diagrams: ', error);
@@ -894,7 +895,7 @@ const ModernDiagramCanvas = () => {
     saveToHistory();
 
     setShowLoadDialog(false);
-    alert(`Loaded diagram: ${diagram.name}`);
+    alert(`Loaded diagram: ${diagram.title}`);
   }, [savedDiagrams, saveToHistory]);
 
   const deleteDiagram = useCallback(async (diagramId: string) => {
@@ -927,7 +928,7 @@ const ModernDiagramCanvas = () => {
     const uniqueNodes = template.nodes.map(node => ({
       ...node,
       id: `${node.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`
-    }));
+    })) as unknown as Node[];
 
     const nodeIdMap = new Map(template.nodes.map((node, i) => [node.id, uniqueNodes[i].id]));
 
@@ -936,7 +937,7 @@ const ModernDiagramCanvas = () => {
       id: `${edge.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       sourceId: nodeIdMap.get(edge.sourceId) || edge.sourceId,
       targetId: nodeIdMap.get(edge.targetId) || edge.targetId
-    }));
+    })) as unknown as Edge[];
 
     const uniqueGroups = template.groups.map(group => ({
       ...group,
@@ -977,11 +978,13 @@ const ModernDiagramCanvas = () => {
   }, [loadSavedDiagrams]);
 
   // Create edge between nodes
-  const createEdge = useCallback((sourceId: string, targetId: string) => {
+  const createEdge = useCallback((sourceId: string, targetId: string, sourceHandle: 'input' | 'output' | 'top' | 'bottom', targetHandle: 'input' | 'output' | 'top' | 'bottom') => {
     const newEdge: Edge = {
       id: `edge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       sourceId,
       targetId,
+      sourceHandle,
+      targetHandle,
       label: 'connection',
       color: '#6b7280',
       width: 2,
@@ -1066,6 +1069,22 @@ const ModernDiagramCanvas = () => {
     const outputDist = Math.sqrt(Math.pow(worldPos.x - outputX, 2) + Math.pow(worldPos.y - outputY, 2));
     if (outputDist <= handleRadius + 5) {
       return 'output';
+    }
+
+    // Top handle
+    const topX = node.x + node.width / 2;
+    const topY = node.y;
+    const topDist = Math.sqrt(Math.pow(worldPos.x - topX, 2) + Math.pow(worldPos.y - topY, 2));
+    if (topDist <= handleRadius + 5) {
+      return 'top';
+    }
+
+    // Bottom handle
+    const bottomX = node.x + node.width / 2;
+    const bottomY = node.y + node.height;
+    const bottomDist = Math.sqrt(Math.pow(worldPos.x - bottomX, 2) + Math.pow(worldPos.y - bottomY, 2));
+    if (bottomDist <= handleRadius + 5) {
+      return 'bottom';
     }
 
     return null;
@@ -1179,7 +1198,7 @@ const ModernDiagramCanvas = () => {
     }
   }, [nodes, edges, saveToHistory]);
 
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number>(0);
   const frameCountRef = useRef(0);
 
   // Initialize animation configs for all edges
@@ -1208,12 +1227,49 @@ const ModernDiagramCanvas = () => {
     const target = getNode(edge.targetId);
     if (!source || !target) return null;
 
-    return {
-      startX: source.x + source.width,
-      startY: source.y + source.height / 2,
-      endX: target.x,
-      endY: target.y + target.height / 2
-    };
+    // Calculate source connection point based on handle type
+    let startX, startY;
+    switch (edge.sourceHandle) {
+      case 'input':
+        startX = source.x;
+        startY = source.y + source.height / 2;
+        break;
+      case 'output':
+        startX = source.x + source.width;
+        startY = source.y + source.height / 2;
+        break;
+      case 'top':
+        startX = source.x + source.width / 2;
+        startY = source.y;
+        break;
+      case 'bottom':
+        startX = source.x + source.width / 2;
+        startY = source.y + source.height;
+        break;
+    }
+
+    // Calculate target connection point based on handle type
+    let endX, endY;
+    switch (edge.targetHandle) {
+      case 'input':
+        endX = target.x;
+        endY = target.y + target.height / 2;
+        break;
+      case 'output':
+        endX = target.x + target.width;
+        endY = target.y + target.height / 2;
+        break;
+      case 'top':
+        endX = target.x + target.width / 2;
+        endY = target.y;
+        break;
+      case 'bottom':
+        endX = target.x + target.width / 2;
+        endY = target.y + target.height;
+        break;
+    }
+
+    return { startX, startY, endX, endY };
   };
 
   // Draw a node with advanced styling
@@ -1454,8 +1510,7 @@ const ModernDiagramCanvas = () => {
 
     // Main label
     ctx.fillStyle = textColor;
-    ctx.font = `${fontSize}px Inter, sans-serif`;
-    ctx.fontWeight = '600';
+    ctx.font = `600 ${fontSize}px Inter, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText(label, x + width / 2, y + height - 16);
 
@@ -1479,6 +1534,22 @@ const ModernDiagramCanvas = () => {
       const outputY = y + height / 2 - handleSize / 2;
       ctx.beginPath();
       ctx.arc(outputX + handleSize / 2, outputY + handleSize / 2, handleSize / 2, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // Top handle
+      const topX = x + width / 2 - handleSize / 2;
+      const topY = y - handleSize / 2;
+      ctx.beginPath();
+      ctx.arc(topX + handleSize / 2, topY + handleSize / 2, handleSize / 2, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // Bottom handle
+      const bottomX = x + width / 2 - handleSize / 2;
+      const bottomY = y + height - handleSize / 2;
+      ctx.beginPath();
+      ctx.arc(bottomX + handleSize / 2, bottomY + handleSize / 2, handleSize / 2, 0, 2 * Math.PI);
       ctx.fill();
       ctx.stroke();
     }
@@ -1590,8 +1661,7 @@ const ModernDiagramCanvas = () => {
 
     // Group label text
     ctx.fillStyle = '#ffffff';
-    ctx.font = '12px Inter, sans-serif';
-    ctx.fontWeight = '600';
+    ctx.font = '600 12px Inter, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(label, x + labelPadding, y + 16);
 
@@ -1811,10 +1881,25 @@ const ModernDiagramCanvas = () => {
     if (isConnecting && connectionStart && connectionPreview) {
       const startNode = nodes.find(n => n.id === connectionStart.nodeId);
       if (startNode) {
-        const startX = connectionStart.handle === 'output'
-          ? startNode.x + startNode.width
-          : startNode.x;
-        const startY = startNode.y + startNode.height / 2;
+        let startX, startY;
+        switch (connectionStart.handle) {
+          case 'input':
+            startX = startNode.x;
+            startY = startNode.y + startNode.height / 2;
+            break;
+          case 'output':
+            startX = startNode.x + startNode.width;
+            startY = startNode.y + startNode.height / 2;
+            break;
+          case 'top':
+            startX = startNode.x + startNode.width / 2;
+            startY = startNode.y;
+            break;
+          case 'bottom':
+            startX = startNode.x + startNode.width / 2;
+            startY = startNode.y + startNode.height;
+            break;
+        }
 
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 2 / viewport.zoom;
@@ -1983,8 +2068,8 @@ const ModernDiagramCanvas = () => {
     // Close context menu on any left click
     setContextMenu(null);
 
-    // Middle mouse button or Space+click for panning
-    if (event.button === 1 || (event.button === 0 && event.spaceKey)) {
+    // Middle mouse button for panning
+    if (event.button === 1) {
       setIsPanning(true);
       setLastPanPoint({ x: screenX, y: screenY });
       return;
@@ -1999,11 +2084,8 @@ const ModernDiagramCanvas = () => {
         if (isConnecting && connectionStart) {
           // Complete connection
           if (connectionStart.nodeId !== node.id) {
-            if (connectionStart.handle === 'output' && handle === 'input') {
-              createEdge(connectionStart.nodeId, node.id);
-            } else if (connectionStart.handle === 'input' && handle === 'output') {
-              createEdge(node.id, connectionStart.nodeId);
-            }
+            // Allow connections between any handles (more flexible)
+            createEdge(connectionStart.nodeId, node.id, connectionStart.handle, handle);
           }
           setIsConnecting(false);
           setConnectionStart(null);
@@ -2253,7 +2335,7 @@ const ModernDiagramCanvas = () => {
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => setActivePanel(id as any)}
+                onClick={() => setActivePanel(id as 'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls')}
                 className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
                   activePanel === id
                     ? 'bg-white text-blue-600 shadow-sm'
@@ -2312,7 +2394,7 @@ const ModernDiagramCanvas = () => {
                 Drag templates onto the canvas to create new nodes
               </p>
 
-              <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3">
                 {NODE_TEMPLATES
                   .filter(template =>
                     template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -2372,7 +2454,7 @@ const ModernDiagramCanvas = () => {
                 </div>
               )}
 
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3">
                 {edges.map(edge => {
                 const config = animationConfigs[edge.id];
                 if (!config) return null;
@@ -2486,7 +2568,7 @@ const ModernDiagramCanvas = () => {
                                   key={shape}
                                   onClick={() => setAnimationConfigs(prev => ({
                                     ...prev,
-                                    [edge.id]: { ...prev[edge.id], shape: shape as any }
+                                    [edge.id]: { ...prev[edge.id], shape: shape as 'circle' | 'square' | 'diamond' | 'triangle' }
                                   }))}
                                   className={`p-1 rounded transition-colors ${
                                     config.shape === shape
@@ -2523,7 +2605,7 @@ const ModernDiagramCanvas = () => {
           )}
 
           {activePanel === 'nodes' && selectedNode && (
-            <div className="space-y-4 max-h-[600px] overflow-y-auto">
+            <div className="space-y-4">
               {(() => {
                 const node = nodes.find(n => n.id === selectedNode);
                 if (!node) return null;
@@ -2623,7 +2705,7 @@ const ModernDiagramCanvas = () => {
                       <select
                         value={node.shape}
                         onChange={(e) => setNodes(prev => prev.map(n =>
-                          n.id === selectedNode ? { ...n, shape: e.target.value as any } : n
+                          n.id === selectedNode ? { ...n, shape: e.target.value as 'rectangle' | 'rounded' | 'circle' | 'diamond' } : n
                         ))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                       >
@@ -2684,7 +2766,7 @@ const ModernDiagramCanvas = () => {
           )}
 
           {activePanel === 'edges' && selectedEdge && (
-            <div className="space-y-4 max-h-[600px] overflow-y-auto">
+            <div className="space-y-4">
               {(() => {
                 const edge = edges.find(e => e.id === selectedEdge);
                 if (!edge) return null;
@@ -2721,8 +2803,8 @@ const ModernDiagramCanvas = () => {
                         <input
                           type="color"
                           value={edge.color}
-                          onChange={(e) => setEdges(prev => prev.map(e =>
-                            e.id === selectedEdge ? { ...e, color: e.target.value } : e
+                          onChange={(e) => setEdges(prev => prev.map(ed =>
+                            ed.id === selectedEdge ? { ...ed, color: e.target.value } : ed
                           ))}
                           className="w-full h-8 border rounded"
                         />
@@ -2733,7 +2815,7 @@ const ModernDiagramCanvas = () => {
                         <select
                           value={edge.style}
                           onChange={(e) => setEdges(prev => prev.map(ed =>
-                            ed.id === selectedEdge ? { ...ed, style: e.target.value as any } : ed
+                            ed.id === selectedEdge ? { ...ed, style: e.target.value as 'solid' | 'dashed' | 'dotted' } : ed
                           ))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                         >
@@ -2752,8 +2834,8 @@ const ModernDiagramCanvas = () => {
                           min="1"
                           max="8"
                           value={edge.width}
-                          onChange={(e) => setEdges(prev => prev.map(e =>
-                            e.id === selectedEdge ? { ...e, width: Number(e.target.value) } : e
+                          onChange={(e) => setEdges(prev => prev.map(ed =>
+                            ed.id === selectedEdge ? { ...ed, width: Number(e.target.value) } : ed
                           ))}
                           className="w-full"
                         />
@@ -2768,8 +2850,8 @@ const ModernDiagramCanvas = () => {
                           max="1"
                           step="0.1"
                           value={edge.curvature}
-                          onChange={(e) => setEdges(prev => prev.map(e =>
-                            e.id === selectedEdge ? { ...e, curvature: Number(e.target.value) } : e
+                          onChange={(e) => setEdges(prev => prev.map(ed =>
+                            ed.id === selectedEdge ? { ...ed, curvature: Number(e.target.value) } : ed
                           ))}
                           className="w-full"
                         />
@@ -2783,8 +2865,8 @@ const ModernDiagramCanvas = () => {
                           min="6"
                           max="20"
                           value={edge.arrowSize}
-                          onChange={(e) => setEdges(prev => prev.map(e =>
-                            e.id === selectedEdge ? { ...e, arrowSize: Number(e.target.value) } : e
+                          onChange={(e) => setEdges(prev => prev.map(ed =>
+                            ed.id === selectedEdge ? { ...ed, arrowSize: Number(e.target.value) } : ed
                           ))}
                           className="w-full"
                         />
@@ -2819,7 +2901,7 @@ const ModernDiagramCanvas = () => {
                 </div>
               )}
 
-              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+              <div className="space-y-2">
                 {groups.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">
                     <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -3415,9 +3497,9 @@ const ModernDiagramCanvas = () => {
                       if (contextMenu.targetId) {
                         setAnimationConfigs(prev => ({
                           ...prev,
-                          [contextMenu.targetId]: {
-                            ...prev[contextMenu.targetId],
-                            enabled: !prev[contextMenu.targetId]?.enabled
+                          [contextMenu.targetId!]: {
+                            ...prev[contextMenu.targetId!],
+                            enabled: !prev[contextMenu.targetId!]?.enabled
                           }
                         }));
                       }
@@ -3772,16 +3854,13 @@ const ModernDiagramCanvas = () => {
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <h3 className="font-medium text-gray-900">{diagram.name}</h3>
-                              {diagram.description && (
-                                <p className="text-sm text-gray-600 mt-1">{diagram.description}</p>
-                              )}
+                              <h3 className="font-medium text-gray-900">{diagram.title}</h3>
                               <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                                 <span>{diagram.nodes?.length || 0} nodes</span>
                                 <span>{diagram.edges?.length || 0} connections</span>
                                 <span>{diagram.groups?.length || 0} groups</span>
                                 <span>
-                                  {diagram.updatedAt?.toDate?.()?.toLocaleDateString() || 'Unknown date'}
+                                  {diagram.createdAt || 'Unknown date'}
                                 </span>
                               </div>
                             </div>
