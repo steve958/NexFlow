@@ -1,6 +1,6 @@
 "use client";
 
-import { rtdb, auth } from "@/lib/firestoreClient";
+import { getFirebaseRtdb, getFirebaseAuth } from "@/lib/firestoreClient";
 import { ref, onDisconnect, set, serverTimestamp, onValue, update, remove } from "firebase/database";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +14,11 @@ export function usePresence(sceneId: string) {
 
   // join/leave
   useEffect(() => {
+    const auth = getFirebaseAuth();
+    const rtdb = getFirebaseRtdb();
+
+    if (!auth || !rtdb) return;
+
     let unsub = () => {};
     const offAuth = onAuthStateChanged(auth, (u) => {
       if (!u) return;
@@ -36,6 +41,9 @@ export function usePresence(sceneId: string) {
 
   // read room
   useEffect(() => {
+    const rtdb = getFirebaseRtdb();
+    if (!rtdb) return;
+
     const roomRef = ref(rtdb, `presence/${sceneId}`);
     return onValue(roomRef, (snap) => setPeers(snap.val() ?? {}));
   }, [sceneId]);
@@ -46,16 +54,22 @@ export function usePresence(sceneId: string) {
 
   const updateCursor = (cursor: {x:number,y:number} | null) => {
     if (!uid) return;
+    const rtdb = getFirebaseRtdb();
+    if (!rtdb) return;
     return update(ref(rtdb, `presence/${sceneId}/${uid}`), { cursor, ts: serverTimestamp() });
   };
 
   const updateSelection = (nodeIds: string[]) => {
     if (!uid) return;
+    const rtdb = getFirebaseRtdb();
+    if (!rtdb) return;
     return update(ref(rtdb, `presence/${sceneId}/${uid}`), { selection: nodeIds, ts: serverTimestamp() });
   };
 
   const leave = async () => {
     if (!uid) return;
+    const rtdb = getFirebaseRtdb();
+    if (!rtdb) return;
     await remove(ref(rtdb, `presence/${sceneId}/${uid}`));
   };
 

@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Palette, Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit } from 'lucide-react';
-import { db, auth } from '@/lib/firestoreClient';
+import { getFirebaseDb, getFirebaseAuth } from '@/lib/firestoreClient';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, addDoc, getDocs, doc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
 
@@ -814,6 +814,14 @@ const ModernDiagramCanvas = () => {
 
   // Save/Load functions
   const saveDiagram = useCallback(async (name: string, description: string = '') => {
+    const auth = getFirebaseAuth();
+    const db = getFirebaseDb();
+
+    if (!auth || !db) {
+      alert('Firebase not initialized');
+      return;
+    }
+
     const user = auth.currentUser;
     if (!user) {
       alert('Please sign in to save diagrams');
@@ -823,14 +831,12 @@ const ModernDiagramCanvas = () => {
     setIsLoading(true);
     try {
       const diagramData = {
-        name,
-        description,
+        title: name,
         nodes,
         edges,
         groups,
         animationConfigs,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
+        createdAt: Timestamp.now().toDate().toISOString(),
         userId: user.uid,
         userEmail: user.email
       };
@@ -849,6 +855,11 @@ const ModernDiagramCanvas = () => {
   }, [nodes, edges, groups, animationConfigs]);
 
   const loadSavedDiagrams = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    const db = getFirebaseDb();
+
+    if (!auth || !db) return;
+
     const user = auth.currentUser;
     if (!user) return;
 
@@ -857,7 +868,7 @@ const ModernDiagramCanvas = () => {
       const q = query(
         collection(db, 'diagrams'),
         where('userId', '==', user.uid),
-        orderBy('updatedAt', 'desc')
+        orderBy('createdAt', 'desc')
       );
       const querySnapshot = await getDocs(q);
       const diagrams = querySnapshot.docs.map(doc => ({
@@ -900,6 +911,9 @@ const ModernDiagramCanvas = () => {
 
   const deleteDiagram = useCallback(async (diagramId: string) => {
     if (!confirm('Are you sure you want to delete this diagram?')) return;
+
+    const db = getFirebaseDb();
+    if (!db) return;
 
     setIsLoading(true);
     try {
@@ -962,6 +976,9 @@ const ModernDiagramCanvas = () => {
 
   // Auth state listener
   useEffect(() => {
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
@@ -971,6 +988,9 @@ const ModernDiagramCanvas = () => {
 
   // Load saved diagrams when component mounts
   useEffect(() => {
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+
     const user = auth.currentUser;
     if (user) {
       loadSavedDiagrams();
@@ -3382,7 +3402,8 @@ const ModernDiagramCanvas = () => {
                       <button
                         onClick={() => {
                           setShowProfileMenu(false);
-                          signOut(auth);
+                          const auth = getFirebaseAuth();
+                          if (auth) signOut(auth);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
                       >

@@ -1,6 +1,6 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
-import { auth } from "@/lib/firestoreClient";
+import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { Palette, Star, Users, Zap, ArrowRight, Github } from "lucide-react";
 
@@ -17,6 +17,12 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!mounted) return;
 
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     return onAuthStateChanged(auth, (u) => {
       console.log("Auth state changed:", u ? `User: ${u.email}` : "No user");
       setUser(u ? { uid: u.uid, email: u.email ?? undefined } : null);
@@ -28,6 +34,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);
     try {
+      const auth = getFirebaseAuth();
+      if (!auth) {
+        throw new Error("Firebase not initialized");
+      }
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (error) {
       console.error("Sign in failed:", error);

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import AuthGate from "@/components/AuthGate";
-import { auth } from "@/lib/firestoreClient";
+import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut } from "firebase/auth";
 import { LogOut, Plus, Palette, Clock, Users, Star, Folder, Search, Filter, Grid, List } from "lucide-react";
 import { useState } from "react";
@@ -75,7 +75,10 @@ export default function Home() {
                   <span>All systems operational</span>
                 </div>
                 <button
-                  onClick={() => signOut(auth)}
+                  onClick={() => {
+                    const auth = getFirebaseAuth();
+                    if (auth) signOut(auth);
+                  }}
                   className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
