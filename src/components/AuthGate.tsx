@@ -9,6 +9,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [firebaseError, setFirebaseError] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -19,6 +20,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
     const auth = getFirebaseAuth();
     if (!auth) {
+      setFirebaseError(true);
       setLoading(false);
       return;
     }
@@ -53,6 +55,33 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading NexFlow</h2>
           <p className="text-gray-600">Preparing your workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show Firebase configuration error
+  if (firebaseError) {
+    return (
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Palette className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Configuration Error</h2>
+          <p className="text-gray-600 mb-4">
+            Firebase configuration is missing. Please check that environment variables are properly set in your deployment.
+          </p>
+          <div className="text-sm text-gray-500 bg-gray-100 rounded-lg p-3">
+            <p className="font-medium mb-2">Required environment variables:</p>
+            <ul className="text-left space-y-1">
+              <li>• NEXT_PUBLIC_FB_API_KEY</li>
+              <li>• NEXT_PUBLIC_FB_AUTH_DOMAIN</li>
+              <li>• NEXT_PUBLIC_FB_PROJECT_ID</li>
+              <li>• NEXT_PUBLIC_FB_APP_ID</li>
+              <li>• NEXT_PUBLIC_FB_DATABASE_URL</li>
+            </ul>
+          </div>
         </div>
       </div>
     );

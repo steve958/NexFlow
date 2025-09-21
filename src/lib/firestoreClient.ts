@@ -24,7 +24,14 @@ function initializeFirebase() {
 
   // Validate config before initialization
   if (!config.apiKey || !config.authDomain || !config.projectId || !config.appId) {
-    console.error('Firebase config is missing required fields:', config);
+    console.error('Firebase config is missing required fields:', {
+      apiKey: config.apiKey ? 'present' : 'missing',
+      authDomain: config.authDomain ? 'present' : 'missing',
+      projectId: config.projectId ? 'present' : 'missing',
+      appId: config.appId ? 'present' : 'missing',
+      databaseURL: config.databaseURL ? 'present' : 'missing'
+    });
+    console.error('Please check your Vercel environment variables configuration.');
     return null;
   }
 
