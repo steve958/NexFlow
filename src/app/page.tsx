@@ -6,7 +6,7 @@ import NewProjectModal from "@/components/NewProjectModal";
 import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut } from "firebase/auth";
-import { LogOut, Plus, Clock, Users, Star, Folder, Search, Filter, Grid, List, Trash2, Copy } from "lucide-react";
+import { LogOut, Plus, Clock, Star, Folder, Search, Filter, Grid, List, Trash2, Copy } from "lucide-react";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { getProjects, deleteProject, duplicateProject, getProjectStats, type Project } from "@/lib/projectStorage";

@@ -4,7 +4,7 @@ import { Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 
 export function ThemeToggle() {
-  const { theme, setTheme, isDark } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const toggleTheme = () => {
     if (theme === 'light') {

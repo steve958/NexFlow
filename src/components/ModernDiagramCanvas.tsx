@@ -400,7 +400,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           const projects = JSON.parse(projectsJson);
           console.log('Parsed projects:', projects);
           console.log('Number of projects:', projects.length);
-          projects.forEach((p: any) => {
+          projects.forEach((p: { id: string; name: string; data?: { nodes?: unknown[] } }) => {
             console.log(`Project ${p.id}: ${p.name}, nodes: ${p.data?.nodes?.length || 0}`);
           });
         }
@@ -417,7 +417,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             // Load project data into the canvas
             if (project.data.nodes && Array.isArray(project.data.nodes) && project.data.nodes.length > 0) {
               // Ensure all nodes have required properties for rendering
-              const processedNodes = project.data.nodes.map((node: any) => ({
+              const processedNodes = project.data.nodes.map((node: Record<string, unknown>) => ({
                 ...node,
                 isVisible: true, // Ensure nodes are visible
                 fontSize: node.fontSize || 12,
@@ -436,7 +436,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
             if (project.data.edges && Array.isArray(project.data.edges)) {
               // Ensure all edges have required properties for rendering
-              const processedEdges = project.data.edges.map((edge: any) => ({
+              const processedEdges = project.data.edges.map((edge: Record<string, unknown>) => ({
                 ...edge,
                 isVisible: true, // KEY FIX: Ensure edges are visible
                 width: edge.width || 2,
@@ -2084,7 +2084,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     ctx.shadowOffsetY = 0;
 
     // Improved node layout - ensure proper spacing
-    const headerHeight = 24;
     const typeTextSize = 8;
     const labelTextSize = Math.min(fontSize, 12); // Cap at 12px for readability
 
