@@ -2,9 +2,9 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight } from 'lucide-react';
 import NextImage from 'next/image';
-import { getFirebaseDb, getFirebaseAuth } from '@/lib/firestoreClient';
-import { signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, addDoc, getDocs, doc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { doc, setDoc, getDocs, collection, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { useTheme } from './ThemeProvider';
 import { ThemeToggle } from './ThemeToggle';
 import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
@@ -360,7 +360,11 @@ const NODE_TEMPLATES: NodeTemplate[] = [
   }
 ];
 
-const ModernDiagramCanvas = () => {
+interface ModernDiagramCanvasProps {
+  projectId?: string;
+}
+
+const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { isDark } = useTheme();
 
@@ -368,124 +372,9 @@ const ModernDiagramCanvas = () => {
   const [history, setHistory] = useState<DiagramState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isUndoRedoRef = useRef(false);
-  const [nodes, setNodes] = useState<Node[]>([
-    {
-      id: 'svc',
-      x: 150,
-      y: 200,
-      width: 160,
-      height: 80,
-      label: 'Service',
-      type: 'service',
-      color: '#3b82f6',
-      borderColor: '#1e40af',
-      textColor: '#ffffff',
-      shape: 'rounded',
-      fontSize: 14,
-      borderWidth: 2,
-      shadow: true,
-      isVisible: true
-    },
-    {
-      id: 'db',
-      x: 500,
-      y: 200,
-      width: 160,
-      height: 80,
-      label: 'Database',
-      type: 'database',
-      color: '#10b981',
-      borderColor: '#047857',
-      textColor: '#ffffff',
-      shape: 'rounded',
-      fontSize: 14,
-      borderWidth: 2,
-      shadow: true,
-      isVisible: true
-    },
-    {
-      id: 'api',
-      x: 150,
-      y: 350,
-      width: 160,
-      height: 80,
-      label: 'API Gateway',
-      type: 'gateway',
-      color: '#8b5cf6',
-      borderColor: '#6d28d9',
-      textColor: '#ffffff',
-      shape: 'rounded',
-      fontSize: 14,
-      borderWidth: 2,
-      shadow: true,
-      isVisible: true
-    },
-    {
-      id: 'queue',
-      x: 500,
-      y: 350,
-      width: 160,
-      height: 80,
-      label: 'Message Queue',
-      type: 'queue',
-      color: '#f59e0b',
-      borderColor: '#d97706',
-      textColor: '#ffffff',
-      shape: 'rounded',
-      fontSize: 14,
-      borderWidth: 2,
-      shadow: true,
-      isVisible: true
-    }
-  ]);
+  const [nodes, setNodes] = useState<Node[]>([]);
 
-  const [edges, setEdges] = useState<Edge[]>([
-    {
-      id: 'e1',
-      sourceId: 'svc',
-      targetId: 'db',
-      sourceHandle: 'output',
-      targetHandle: 'input',
-      label: 'writes',
-      color: '#6b7280',
-      width: 2,
-      style: 'solid',
-      animated: false,
-      curvature: 0.3,
-      arrowSize: 12,
-      isVisible: true
-    },
-    {
-      id: 'e2',
-      sourceId: 'api',
-      targetId: 'svc',
-      sourceHandle: 'output',
-      targetHandle: 'input',
-      label: 'requests',
-      color: '#6b7280',
-      width: 2,
-      style: 'solid',
-      animated: false,
-      curvature: 0.3,
-      arrowSize: 12,
-      isVisible: true
-    },
-    {
-      id: 'e3',
-      sourceId: 'svc',
-      targetId: 'queue',
-      sourceHandle: 'output',
-      targetHandle: 'input',
-      label: 'events',
-      color: '#6b7280',
-      width: 2,
-      style: 'solid',
-      animated: false,
-      curvature: 0.3,
-      arrowSize: 12,
-      isVisible: true
-    }
-  ]);
+  const [edges, setEdges] = useState<Edge[]>([]);
 
   const [packets, setPackets] = useState<Packet[]>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -493,11 +382,99 @@ const ModernDiagramCanvas = () => {
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
-  // User state
+  // User state - Firebase authentication
   const [user, setUser] = useState<User | null>(null);
 
   // Groups state
   const [groups, setGroups] = useState<NodeGroup[]>([]);
+
+  // Load project data when projectId changes
+  useEffect(() => {
+    if (projectId) {
+      try {
+        // First, let's inspect localStorage contents
+        console.log('=== LOCALSTORAGE DEBUG ===');
+        const projectsJson = localStorage.getItem('nexflow-projects');
+        console.log('Raw localStorage projects:', projectsJson);
+        if (projectsJson) {
+          const projects = JSON.parse(projectsJson);
+          console.log('Parsed projects:', projects);
+          console.log('Number of projects:', projects.length);
+          projects.forEach((p: any) => {
+            console.log(`Project ${p.id}: ${p.name}, nodes: ${p.data?.nodes?.length || 0}`);
+          });
+        }
+
+        import('@/lib/projectStorage').then(({ getProject }) => {
+          const project = getProject(projectId);
+
+          if (project && project.data) {
+            console.log('=== PROJECT LOADING DEBUG ===');
+            console.log('Project data found:', project);
+            console.log('Project.data:', project.data);
+            console.log('Project.data.nodes:', project.data.nodes);
+
+            // Load project data into the canvas
+            if (project.data.nodes && Array.isArray(project.data.nodes) && project.data.nodes.length > 0) {
+              // Ensure all nodes have required properties for rendering
+              const processedNodes = project.data.nodes.map((node: any) => ({
+                ...node,
+                isVisible: true, // Ensure nodes are visible
+                fontSize: node.fontSize || 12,
+                borderWidth: node.borderWidth || 2,
+                shadow: node.shadow !== false, // Default to true unless explicitly false
+                textColor: node.textColor || '#ffffff'
+              })) as Node[];
+
+              setNodes(processedNodes);
+              console.log('Set nodes:', processedNodes.length);
+              console.log('First processed node:', processedNodes[0]);
+            } else {
+              console.log('No nodes found in project data');
+              setNodes([]);
+            }
+
+            if (project.data.edges && Array.isArray(project.data.edges)) {
+              // Ensure all edges have required properties for rendering
+              const processedEdges = project.data.edges.map((edge: any) => ({
+                ...edge,
+                isVisible: true, // KEY FIX: Ensure edges are visible
+                width: edge.width || 2,
+                style: edge.style || 'solid',
+                animated: edge.animated || false,
+                curvature: edge.curvature || 0.5
+              })) as Edge[];
+
+              setEdges(processedEdges);
+              console.log('Set edges:', processedEdges.length);
+              console.log('First processed edge:', processedEdges[0]);
+            } else {
+              console.log('No edges found in project data');
+              setEdges([]);
+            }
+
+            // Groups are not stored in project data yet, keep empty array
+            setGroups([]);
+            // Switch to nodes panel when a project is loaded
+            setActivePanel('nodes');
+            // Reset viewport to ensure nodes are visible
+            setViewport({ x: 0, y: 0, zoom: 1 });
+            console.log('Loaded project:', project.name, 'with', project.data.nodes?.length || 0, 'nodes');
+          } else {
+            console.log('Project not found:', projectId);
+            // If no project found, stay on templates panel
+            setActivePanel('templates');
+          }
+        });
+      } catch (error) {
+        console.error('Error loading project:', error);
+        setActivePanel('templates');
+      }
+    } else {
+      // If no projectId, show templates by default
+      setActivePanel('templates');
+    }
+  }, [projectId]);
 
   // Viewport state for zoom and pan (client-side only)
   const [viewport, setViewport] = useState<ViewportState>({ x: 0, y: 0, zoom: 1 });
@@ -1109,59 +1086,62 @@ const ModernDiagramCanvas = () => {
   }, [nodes]);
 
   // Save/Load functions
-  const saveDiagram = useCallback(async (name: string, _description: string = '') => {
-    const auth = getFirebaseAuth();
-    const db = getFirebaseDb();
-
-    if (!auth || !db) {
-      alert('Firebase not initialized');
+  const saveDiagram = useCallback(async (name: string, description: string = '') => {
+    if (!user) {
+      alert('Please sign in to save diagrams to the cloud');
       return;
     }
 
-    const user = auth.currentUser;
-    if (!user) {
-      alert('Please sign in to save diagrams');
+    const db = getFirebaseDb();
+    if (!db) {
+      alert('Firebase not configured. Cannot save to cloud.');
       return;
     }
 
     setIsLoading(true);
     try {
       const diagramData = {
+        id: `diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         title: name,
+        description,
         nodes,
         edges,
         groups,
         animationConfigs,
-        createdAt: Timestamp.now().toDate().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         userId: user.uid,
         userEmail: user.email
       };
 
-      const docRef = await addDoc(collection(db, 'diagrams'), diagramData);
-      console.log('Diagram saved with ID: ', docRef.id);
+      await setDoc(doc(db, 'diagrams', diagramData.id), diagramData);
+      loadSavedDiagramsRef.current(); // Refresh the list
       alert('Diagram saved successfully!');
       setShowSaveDialog(false);
-      loadSavedDiagrams(); // Refresh the list
     } catch (error: unknown) {
       console.error('Error saving diagram: ', error);
       if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
-        alert('Permission denied. Please check your authentication or contact support.');
+        alert('Permission denied. Unable to save diagram.');
       } else {
-        alert('Failed to save diagram. Please try again.');
+        alert('Failed to save diagram');
       }
     } finally {
       setIsLoading(false);
     }
-  }, [nodes, edges, groups, animationConfigs]);
+  }, [user, nodes, edges, groups, animationConfigs]);
 
   const loadSavedDiagrams = useCallback(async () => {
-    const auth = getFirebaseAuth();
+    if (!user) {
+      setSavedDiagrams([]);
+      return;
+    }
+
     const db = getFirebaseDb();
-
-    if (!auth || !db) return;
-
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!db) {
+      console.log('Firebase not configured, skipping saved diagrams load');
+      setSavedDiagrams([]);
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -1170,24 +1150,26 @@ const ModernDiagramCanvas = () => {
         where('userId', '==', user.uid),
         orderBy('createdAt', 'desc')
       );
+
       const querySnapshot = await getDocs(q);
       const diagrams = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as { id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }[];
-      setSavedDiagrams(diagrams);
+      }));
+
+      setSavedDiagrams(diagrams as Array<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }>);
     } catch (error: unknown) {
-      console.error('Error loading diagrams: ', error);
-      // Handle specific Firebase permission errors
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
-        console.log('Permission denied - user may not be authenticated or Firestore rules need updating');
-      }
-      // Don't show error to user for permission issues, just fail silently
+      console.error('Error loading diagrams (this is expected if Firebase rules are not set up): ', error);
+      // Don't show error to user for permission issues, just set empty array
       setSavedDiagrams([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
+
+  // Create a stable reference for loadSavedDiagrams
+  const loadSavedDiagramsRef = useRef(loadSavedDiagrams);
+  loadSavedDiagramsRef.current = loadSavedDiagrams;
 
   const loadDiagram = useCallback(async (diagramId: string) => {
     const diagram = savedDiagrams.find(d => d.id === diagramId);
@@ -1219,12 +1201,15 @@ const ModernDiagramCanvas = () => {
     if (!confirm('Are you sure you want to delete this diagram?')) return;
 
     const db = getFirebaseDb();
-    if (!db) return;
+    if (!db) {
+      alert('Firebase not configured. Cannot delete from cloud.');
+      return;
+    }
 
     setIsLoading(true);
     try {
       await deleteDoc(doc(db, 'diagrams', diagramId));
-      loadSavedDiagrams(); // Refresh the list
+      loadSavedDiagramsRef.current(); // Refresh the list
       alert('Diagram deleted successfully');
     } catch (error: unknown) {
       console.error('Error deleting diagram: ', error);
@@ -1296,12 +1281,12 @@ const ModernDiagramCanvas = () => {
     return () => unsubscribe();
   }, []);
 
-  // Load saved diagrams when user changes
+  // Load saved diagrams when user changes (only if not loading a specific project)
   useEffect(() => {
-    if (user) {
+    if (user && !projectId) {
       loadSavedDiagrams();
     }
-  }, [user, loadSavedDiagrams]);
+  }, [user, loadSavedDiagrams, projectId]);
 
   // Close layout menu when clicking outside
   useEffect(() => {
@@ -1589,6 +1574,7 @@ const ModernDiagramCanvas = () => {
   const getConnectionPoints = (edge: Edge) => {
     const source = getNode(edge.sourceId);
     const target = getNode(edge.targetId);
+
     if (!source || !target) return null;
 
     // Calculate source connection point based on handle type
@@ -2091,19 +2077,59 @@ const ModernDiagramCanvas = () => {
         ctx.fill();
     }
 
-    // Node type badge
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.fillRect(x, y + 28, width, 20);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = '9px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(node.type.toUpperCase(), x + width / 2, y + 40);
+    // Clear text shadow effects before drawing text
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
-    // Main label
-    ctx.fillStyle = textColor;
-    ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+    // Improved node layout - ensure proper spacing
+    const headerHeight = 24;
+    const typeTextSize = 8;
+    const labelTextSize = Math.min(fontSize, 12); // Cap at 12px for readability
+
+    // Node type badge (top section)
+    const badgeHeight = 18;
+    const badgeY = y + 6;
+
+    // Semi-transparent background for type badge
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(x + 4, badgeY, width - 8, badgeHeight);
+
+    // Type text with better contrast
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.font = `600 ${typeTextSize}px Inter, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(label, x + width / 2, y + height - 16);
+    ctx.fillText(node.type.toUpperCase(), x + width / 2, badgeY + 12);
+
+    // Main label (center section with better positioning)
+    const labelY = y + height / 2 + 4; // Center vertically
+    ctx.fillStyle = textColor;
+    ctx.font = `600 ${labelTextSize}px Inter, sans-serif`;
+    ctx.textAlign = 'center';
+
+    // Text wrapping for long labels
+    const maxLabelWidth = width - 16; // Leave 8px padding on each side
+    const labelWidth = ctx.measureText(label).width;
+
+    if (labelWidth > maxLabelWidth && label.length > 10) {
+      // Split long labels into two lines
+      const words = label.split(' ');
+      if (words.length > 1) {
+        const mid = Math.ceil(words.length / 2);
+        const line1 = words.slice(0, mid).join(' ');
+        const line2 = words.slice(mid).join(' ');
+
+        ctx.fillText(line1, x + width / 2, labelY - 6);
+        ctx.fillText(line2, x + width / 2, labelY + 8);
+      } else {
+        // Single long word, truncate with ellipsis
+        const truncated = label.length > 12 ? label.substring(0, 12) + '...' : label;
+        ctx.fillText(truncated, x + width / 2, labelY);
+      }
+    } else {
+      ctx.fillText(label, x + width / 2, labelY);
+    }
 
     // Connection handles (show when selected or connecting)
     if (isSelected || isConnecting) {
@@ -2388,6 +2414,8 @@ const ModernDiagramCanvas = () => {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Render canvas (debugging removed for performance)
 
     // Save context state
     ctx.save();
@@ -2938,7 +2966,7 @@ const ModernDiagramCanvas = () => {
           <div className="flex items-center gap-2 mb-4">
             <div className="w-16 h-16">
               <NextImage
-                src="/logo.png"
+                src="/canvas-logo.png"
                 alt="NexFlow Logo"
                 width={64}
                 height={64}
@@ -3917,7 +3945,7 @@ const ModernDiagramCanvas = () => {
                 </button>
                 <button
                   onClick={() => {
-                    loadSavedDiagrams();
+                    loadSavedDiagramsRef.current();
                     setShowLoadDialog(true);
                   }}
                   className="p-2 rounded-md hover:bg-blue-100 transition-colors text-blue-600"
@@ -4121,10 +4149,16 @@ const ModernDiagramCanvas = () => {
                       <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
 
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           setShowProfileMenu(false);
                           const auth = getFirebaseAuth();
-                          if (auth) signOut(auth);
+                          if (auth) {
+                            try {
+                              await signOut(auth);
+                            } catch (error) {
+                              console.error('Error signing out:', error);
+                            }
+                          }
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
                       >
