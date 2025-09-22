@@ -5,6 +5,9 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 export const metadata: Metadata = {
   title: "NexFlow",
   description: "Diagram & animate architectures",
+  icons: {
+    icon: '/nexflow.ico',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
