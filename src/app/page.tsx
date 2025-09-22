@@ -3,8 +3,9 @@ import Link from "next/link";
 import AuthGate from "@/components/AuthGate";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut } from "firebase/auth";
-import { LogOut, Plus, Palette, Clock, Users, Star, Folder, Search, Filter, Grid, List } from "lucide-react";
+import { LogOut, Plus, Clock, Users, Star, Folder, Search, Filter, Grid, List } from "lucide-react";
 import { useState } from "react";
+import Image from "next/image";
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -63,8 +64,14 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <Palette className="w-5 h-5 text-white" />
+                <div className="w-16 h-16">
+                  <Image
+                    src="/logo.png"
+                    alt="NexFlow Logo"
+                    width={64}
+                    height={64}
+                    className="w-full h-full object-contain rounded-xl"
+                  />
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900">NexFlow</h1>
               </div>
@@ -104,7 +111,7 @@ export default function Home() {
               className="p-6 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all transform hover:scale-105 group"
             >
               <div className="flex items-center gap-3 mb-3">
-                <Palette className="w-8 h-8" />
+                <Star className="w-8 h-8" />
                 <div>
                   <h3 className="text-lg font-semibold">Try Demo</h3>
                   <p className="text-blue-100 text-sm">Interactive playground</p>
@@ -198,7 +205,7 @@ export default function Home() {
                       className="group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-lg transition-all"
                     >
                       <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <Palette className="w-12 h-12 text-gray-400" />
+                        <Folder className="w-12 h-12 text-gray-400" />
                       </div>
                       <div className="p-4">
                         <div className="flex items-start justify-between mb-2">
@@ -233,7 +240,7 @@ export default function Home() {
                       className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all group"
                     >
                       <div className="w-16 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                        <Palette className="w-6 h-6 text-gray-400" />
+                        <Folder className="w-6 h-6 text-gray-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">

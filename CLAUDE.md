@@ -22,27 +22,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Animation System**: GSAP-powered packet animations along connection paths
 
 ### Key Components
-- `src/app/page.tsx`: Landing page with demo scene link
+- `src/app/page.tsx`: Landing page with project dashboard and demo scene link
 - `src/app/app/[scene]/page.tsx`: Dynamic scene editor with authentication gate
 - `src/components/`:
   - `ModernDiagramCanvas.tsx`: Main canvas-based diagram editor (3800+ lines)
   - `AuthGate.tsx`: Firebase Google authentication wrapper with SSR safety
   - `ClientOnly.tsx`: Client-side rendering wrapper component
-  - Animation components: `AnimationPanel.tsx`, `EdgeAnimationPanel.tsx`, `SimpleAnimationPanel.tsx`
-- `src/hooks/`: Animation management hooks (`useAnimationManager.ts`, `useEdgeAnimations.ts`, etc.)
+  - `ThemeProvider.tsx` & `ThemeToggle.tsx`: Dark/light theme management
+  - `KeyboardShortcutsPanel.tsx`: Help panel for keyboard shortcuts
+  - `NodeGroupManager.tsx`: Node grouping and container management
+  - Animation components: `SimpleAnimationPanel.tsx`
+  - Presence components: `CursorOverlay.tsx`, `PresenceBadge.tsx`
+- `src/hooks/`: Animation management hooks (`useAnimationManager.ts`, `useEdgeAnimations.ts`, `usePresence.ts`, `useCursorBroadcast.ts`, etc.)
 - `src/lib/`:
   - `firestoreClient.ts`: Firebase configuration and client setup
   - `animationTypes.ts`: TypeScript interfaces for animation system
+  - `autoLayout.ts`: ELK.js automatic layout functionality
+  - `exportUtils.ts`: Diagram export utilities (PNG, SVG, JSON)
 
 ### Canvas Architecture
 The main diagram editor (`ModernDiagramCanvas.tsx`) is a sophisticated canvas-based implementation featuring:
-- **Custom Node System**: 14 predefined node templates (service, database, cloud, API, etc.)
+- **Custom Node System**: 32+ predefined node templates (service, database, cloud, API, security, storage, compute, network, frontend, mobile, monitor, cache, auth, email, search, analytics, config, cicd, docs, scheduler, users, chat, workflow, container, router, streaming, timer, notification, secrets, code, etc.)
 - **Advanced Edge Rendering**: Bezier curves with customizable styling and animations
 - **Packet Animation System**: Configurable animated particles flowing along edges
 - **Viewport Management**: Zoom, pan, and grid snapping with minimap
 - **Interaction Handling**: Drag-and-drop, multi-select, connection creation
-- **Export Capabilities**: PNG, SVG, and JSON export functionality
+- **Export Capabilities**: PNG, SVG, and JSON export functionality via DiagramExporter
 - **History System**: Undo/redo with 50-state limit
+- **Node Grouping**: Support for collapsible node groups and containers
+- **Theme Support**: Dark/light mode toggle with ThemeProvider integration
 
 ### Animation System
 - **GSAP Integration**: Professional-grade animations via GSAP library
@@ -105,7 +113,7 @@ The app requires these environment variables for Firebase:
 ### Node Types
 1. Update `NODE_TEMPLATES` array in `ModernDiagramCanvas.tsx:102-180`
 2. Add icon drawing logic in `drawNode` function around line 894-1011
-3. Update TypeScript `Node['type']` union type at line 14
+3. Update TypeScript `Node['type']` union type at line 20 (now supports 32+ types)
 4. Test drag-and-drop creation and property editing
 
 ### Animation System

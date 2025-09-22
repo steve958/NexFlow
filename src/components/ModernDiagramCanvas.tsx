@@ -1,9 +1,16 @@
 "use client";
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Palette, Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit } from 'lucide-react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight } from 'lucide-react';
+import NextImage from 'next/image';
 import { getFirebaseDb, getFirebaseAuth } from '@/lib/firestoreClient';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, addDoc, getDocs, doc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { useTheme } from './ThemeProvider';
+import { ThemeToggle } from './ThemeToggle';
+import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
+import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
+import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
+import { DiagramExporter } from '@/lib/exportUtils';
 
 interface Node {
   id: string;
@@ -12,7 +19,7 @@ interface Node {
   width: number;
   height: number;
   label: string;
-  type: 'service' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor';
+  type: 'service' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
   color: string;
   borderColor: string;
   textColor: string;
@@ -198,11 +205,164 @@ const NODE_TEMPLATES: NodeTemplate[] = [
     borderColor: '#9333ea',
     icon: Zap,
     description: 'Monitoring or analytics'
+  },
+  {
+    type: 'cache',
+    label: 'Cache',
+    color: '#f59e0b',
+    borderColor: '#d97706',
+    icon: Layers,
+    description: 'Redis, Memcached, or other cache'
+  },
+  {
+    type: 'auth',
+    label: 'Authentication',
+    color: '#dc2626',
+    borderColor: '#b91c1c',
+    icon: Lock,
+    description: 'Auth service, OAuth, or SSO'
+  },
+  {
+    type: 'email',
+    label: 'Email Service',
+    color: '#2563eb',
+    borderColor: '#1d4ed8',
+    icon: Mail,
+    description: 'Email service or SMTP'
+  },
+  {
+    type: 'search',
+    label: 'Search Engine',
+    color: '#059669',
+    borderColor: '#047857',
+    icon: Search,
+    description: 'Elasticsearch, Solr, or search service'
+  },
+  {
+    type: 'analytics',
+    label: 'Analytics',
+    color: '#7c3aed',
+    borderColor: '#6d28d9',
+    icon: BarChart3,
+    description: 'Analytics or metrics collection'
+  },
+  {
+    type: 'config',
+    label: 'Configuration',
+    color: '#64748b',
+    borderColor: '#475569',
+    icon: Settings2,
+    description: 'Config service or environment settings'
+  },
+  {
+    type: 'cicd',
+    label: 'CI/CD Pipeline',
+    color: '#16a34a',
+    borderColor: '#15803d',
+    icon: GitBranch,
+    description: 'Continuous integration/deployment'
+  },
+  {
+    type: 'docs',
+    label: 'Documentation',
+    color: '#0891b2',
+    borderColor: '#0e7490',
+    icon: FileText,
+    description: 'Documentation or wiki'
+  },
+  {
+    type: 'scheduler',
+    label: 'Task Scheduler',
+    color: '#ea580c',
+    borderColor: '#c2410c',
+    icon: Calendar,
+    description: 'Cron jobs, scheduled tasks'
+  },
+  {
+    type: 'users',
+    label: 'User Management',
+    color: '#db2777',
+    borderColor: '#be185d',
+    icon: Users,
+    description: 'User service or directory'
+  },
+  {
+    type: 'chat',
+    label: 'Chat/Messaging',
+    color: '#0d9488',
+    borderColor: '#0f766e',
+    icon: MessageSquare,
+    description: 'Chat, messaging, or communication'
+  },
+  {
+    type: 'workflow',
+    label: 'Workflow Engine',
+    color: '#7c2d12',
+    borderColor: '#92400e',
+    icon: Workflow,
+    description: 'Workflow orchestration or automation'
+  },
+  {
+    type: 'container',
+    label: 'Container',
+    color: '#1e40af',
+    borderColor: '#1e3a8a',
+    icon: Container,
+    description: 'Docker container or K8s pod'
+  },
+  {
+    type: 'router',
+    label: 'Router/Proxy',
+    color: '#be123c',
+    borderColor: '#9f1239',
+    icon: Route,
+    description: 'Network router or reverse proxy'
+  },
+  {
+    type: 'streaming',
+    label: 'Event Streaming',
+    color: '#a21caf',
+    borderColor: '#86198f',
+    icon: Radio,
+    description: 'Kafka, EventBridge, or streaming'
+  },
+  {
+    type: 'timer',
+    label: 'Timer Service',
+    color: '#dc2626',
+    borderColor: '#b91c1c',
+    icon: Timer,
+    description: 'Timer, timeout, or delay service'
+  },
+  {
+    type: 'notification',
+    label: 'Notifications',
+    color: '#f59e0b',
+    borderColor: '#d97706',
+    icon: Bell,
+    description: 'Push notifications or alerts'
+  },
+  {
+    type: 'secrets',
+    label: 'Secrets Manager',
+    color: '#374151',
+    borderColor: '#1f2937',
+    icon: Key,
+    description: 'Secret storage, vault, or key management'
+  },
+  {
+    type: 'code',
+    label: 'Code Repository',
+    color: '#4338ca',
+    borderColor: '#3730a3',
+    icon: Code2,
+    description: 'Git repository or source code'
   }
 ];
 
 const ModernDiagramCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { isDark } = useTheme();
 
   // History management for undo/redo
   const [history, setHistory] = useState<DiagramState[]>([]);
@@ -374,6 +534,8 @@ const ModernDiagramCanvas = () => {
 
   // Help panel state
   const [showHelp, setShowHelp] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showCustomNodeBuilder, setShowCustomNodeBuilder] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // Save/Load state
@@ -384,6 +546,35 @@ const ModernDiagramCanvas = () => {
 
   // Templates state
   const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
+  const [customNodeTemplates, setCustomNodeTemplates] = useState<CustomNodeTemplate[]>([]);
+
+  // Auto-layout state
+  const [isLayouting, setIsLayouting] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+
+  // Export state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'png' | 'svg' | 'pdf' | 'jpg'>('png');
+  const [exportOptions, setExportOptions] = useState({
+    scale: 2,
+    quality: 0.95,
+    includeBackground: true,
+    includeGrid: false,
+    includeBranding: true,
+    theme: 'current' as 'current' | 'light' | 'dark'
+  });
+
+  // Performance monitoring state
+  const [showPerformanceStats, setShowPerformanceStats] = useState(false);
+  const [performanceStats, setPerformanceStats] = useState({
+    totalNodes: 0,
+    visibleNodes: 0,
+    totalEdges: 0,
+    visibleEdges: 0,
+    totalGroups: 0,
+    visibleGroups: 0,
+    lastRenderTime: 0
+  });
 
   // Predefined diagram templates
   const DIAGRAM_TEMPLATES = [
@@ -514,99 +705,203 @@ const ModernDiagramCanvas = () => {
     }
   }, [history, historyIndex]);
 
-  // Export as PNG
-  const exportAsPNG = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Auto-layout functions
+  const applyAutoLayout = useCallback(async (layoutType: string) => {
+    if (nodes.length === 0) return;
 
-    // Create a temporary canvas with white background
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext('2d');
+    setIsLayouting(true);
 
-    if (tempCtx) {
-      // Fill with white background
-      tempCtx.fillStyle = '#ffffff';
-      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    try {
+      // Convert our nodes to layout format
+      const layoutNodes: LayoutNode[] = nodes.map(node => ({
+        id: node.id,
+        x: node.x,
+        y: node.y,
+        width: node.width,
+        height: node.height,
+        label: node.label,
+        type: node.type,
+      }));
 
-      // Draw the original canvas on top
-      tempCtx.drawImage(canvas, 0, 0);
+      // Convert our edges to layout format
+      const layoutEdges: LayoutEdge[] = edges.map(edge => ({
+        id: edge.id,
+        from: edge.sourceId,
+        to: edge.targetId,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+      }));
 
-      // Create download link
-      tempCanvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `nexflow-diagram-${Date.now()}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
+      // Apply layout
+      const layoutOptions = layoutPresets[layoutType] || layoutPresets.horizontal;
+      const layoutedNodes = await autoLayout(layoutNodes, layoutEdges, layoutOptions);
+
+      // Update nodes with new positions
+      const updatedNodes = nodes.map(node => {
+        const layoutedNode = layoutedNodes.find(ln => ln.id === node.id);
+        if (layoutedNode) {
+          return {
+            ...node,
+            x: layoutedNode.x,
+            y: layoutedNode.y,
+          };
         }
+        return node;
       });
+
+      setNodes(updatedNodes);
+      saveToHistory();
+      setShowLayoutMenu(false);
+    } catch (error) {
+      console.error('Auto-layout failed:', error);
+    } finally {
+      setIsLayouting(false);
+    }
+  }, [nodes, edges, saveToHistory]);
+
+  // Custom node template handlers
+  const handleSaveCustomNodeTemplate = useCallback((template: CustomNodeTemplate) => {
+    setCustomNodeTemplates(prev => [...prev, template]);
+
+    // Save to localStorage for persistence
+    const updatedTemplates = [...customNodeTemplates, template];
+    localStorage.setItem('nexflow-custom-node-templates', JSON.stringify(updatedTemplates));
+
+    console.log('Custom node template saved:', template);
+  }, [customNodeTemplates]);
+
+  // Load custom templates from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('nexflow-custom-node-templates');
+    if (saved) {
+      try {
+        const templates = JSON.parse(saved);
+        setCustomNodeTemplates(templates);
+      } catch (error) {
+        console.error('Failed to load custom node templates:', error);
+      }
     }
   }, []);
 
-  // Export as SVG
-  const exportAsSVG = useCallback(() => {
+  // Combine built-in and custom templates
+  const allNodeTemplates = useMemo(() => {
+    const customTemplatesAsNodeTemplates = customNodeTemplates.map(template => ({
+      type: template.type as Node['type'],
+      label: template.label,
+      color: template.color,
+      borderColor: template.borderColor,
+      icon: (() => {
+        // Return a placeholder icon component for custom nodes
+        const CustomIcon = ({ className }: { className?: string }) => (
+          <div className={className} dangerouslySetInnerHTML={{ __html: template.icon || '<div>?</div>' }} />
+        );
+        return CustomIcon;
+      })(),
+      description: template.description,
+    }));
+
+    return [...NODE_TEMPLATES, ...customTemplatesAsNodeTemplates];
+  }, [customNodeTemplates]);
+
+  // Viewport culling utilities
+  const isInViewport = useCallback((x: number, y: number, width: number, height: number) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return true;
 
-    // Create SVG string
-    let svg = `<svg width="${canvas.width}" height="${canvas.height}" xmlns="http://www.w3.org/2000/svg">`;
-    svg += `<rect width="100%" height="100%" fill="white"/>`;
+    // Calculate viewport bounds in world coordinates
+    const viewportBounds = {
+      left: -viewport.x / viewport.zoom,
+      top: -viewport.y / viewport.zoom,
+      right: (canvas.width - viewport.x) / viewport.zoom,
+      bottom: (canvas.height - viewport.y) / viewport.zoom
+    };
 
-    // Add nodes
-    nodes.filter(node => node.isVisible).forEach(node => {
-      const rx = node.shape === 'circle' ? node.width / 2 : (node.shape === 'rounded' ? 8 : 0);
-      svg += `<rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}"
-        fill="${node.color}" stroke="${node.borderColor}" stroke-width="${node.borderWidth}" rx="${rx}"/>`;
-      svg += `<text x="${node.x + node.width / 2}" y="${node.y + node.height / 2 + 4}"
-        text-anchor="middle" font-family="sans-serif" font-size="${node.fontSize}" fill="${node.textColor}">${node.label}</text>`;
+    // Add some padding to reduce popping
+    const padding = 50;
+
+    return !(
+      x + width < viewportBounds.left - padding ||
+      x > viewportBounds.right + padding ||
+      y + height < viewportBounds.top - padding ||
+      y > viewportBounds.bottom + padding
+    );
+  }, [viewport]);
+
+  const getVisibleNodes = useCallback(() => {
+    return nodes.filter(node =>
+      node.isVisible && isInViewport(node.x, node.y, node.width, node.height)
+    );
+  }, [nodes, isInViewport]);
+
+  const getVisibleEdges = useCallback(() => {
+    return edges.filter(edge => {
+      if (!edge.isVisible) return false;
+
+      // Get source and target nodes
+      const sourceNode = nodes.find(n => n.id === edge.sourceId);
+      const targetNode = nodes.find(n => n.id === edge.targetId);
+
+      if (!sourceNode || !targetNode) return false;
+
+      // Check if either endpoint is visible (edges can span viewport)
+      return isInViewport(sourceNode.x, sourceNode.y, sourceNode.width, sourceNode.height) ||
+             isInViewport(targetNode.x, targetNode.y, targetNode.width, targetNode.height);
     });
+  }, [edges, nodes, isInViewport]);
 
-    // Add edges
-    edges.filter(edge => edge.isVisible).forEach(edge => {
-      const points = getConnectionPoints(edge);
-      if (points) {
-        const { startX, startY, endX, endY } = points;
-        const controlOffset = Math.min(Math.abs(endX - startX) * edge.curvature, 150);
-        const cp1X = startX + controlOffset;
-        const cp1Y = startY;
-        const cp2X = endX - controlOffset;
-        const cp2Y = endY;
+  const getVisibleGroups = useCallback(() => {
+    return groups.filter(group =>
+      group.isVisible && isInViewport(group.x, group.y, group.width, group.height)
+    );
+  }, [groups, isInViewport]);
 
-        svg += `<path d="M ${startX} ${startY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${endX} ${endY}"
-          stroke="${edge.color}" stroke-width="${edge.width}" fill="none"/>`;
+  // Initialize DiagramExporter
+  const diagramExporter = React.useMemo(() => {
+    return new DiagramExporter(nodes, edges, groups);
+  }, [nodes, edges, groups]);
 
-        // Add arrow
-        const angle = Math.atan2(endY - cp2Y, endX - cp2X);
-        const arrowLength = edge.arrowSize;
-        svg += `<path d="M ${endX} ${endY} L ${endX - arrowLength * Math.cos(angle - Math.PI / 6)} ${endY - arrowLength * Math.sin(angle - Math.PI / 6)} M ${endX} ${endY} L ${endX - arrowLength * Math.cos(angle + Math.PI / 6)} ${endY - arrowLength * Math.sin(angle + Math.PI / 6)}"
-          stroke="${edge.color}" stroke-width="${edge.width}" fill="none"/>`;
+  // Enhanced export function that uses the new export system
+  const handleExport = useCallback(async (format?: 'png' | 'svg' | 'pdf' | 'jpg') => {
+    if (!diagramExporter) return;
 
-        // Add label
-        const midX = (startX + cp1X + cp2X + endX) / 4;
-        const midY = (startY + cp1Y + cp2Y + endY) / 4;
-        svg += `<text x="${midX}" y="${midY - 8}" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#374151">${edge.label}</text>`;
+    const formatToUse = format || exportFormat;
+    const { theme: themeOption, ...otherOptions } = exportOptions;
+
+    // Determine theme for export
+    const actualTheme = themeOption === 'current' ? (isDark ? 'dark' : 'light') : themeOption;
+    const finalOptions = {
+      ...otherOptions,
+      theme: actualTheme,
+      viewport
+    };
+
+    try {
+      switch (formatToUse) {
+        case 'svg':
+          await diagramExporter.exportAsSVG(finalOptions);
+          break;
+        case 'pdf':
+          await diagramExporter.exportAsPDF(finalOptions);
+          break;
+        case 'jpg':
+          // JPG export not yet implemented, fallback to PNG
+          await diagramExporter.exportAsPNG(finalOptions);
+          break;
+        default:
+          await diagramExporter.exportAsPNG(finalOptions);
       }
-    });
+      // Download is handled by the exporter
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    }
+  }, [diagramExporter, exportFormat, exportOptions, isDark, viewport]);
 
-    svg += `</svg>`;
-
-    // Create download
-    const blob = new Blob([svg], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `nexflow-diagram-${Date.now()}.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [nodes, edges]);
+  // Legacy export functions for backward compatibility
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const exportAsPNG = useCallback(() => handleExport('png'), [handleExport]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const exportAsSVG = useCallback(() => handleExport('svg'), [handleExport]);
 
   // Export as JSON
   const exportAsJSON = useCallback(() => {
@@ -648,7 +943,7 @@ const ModernDiagramCanvas = () => {
           }
           saveToHistory();
         }
-      } catch (error) {
+      } catch {
         alert('Invalid JSON file format');
       }
     };
@@ -789,6 +1084,7 @@ const ModernDiagramCanvas = () => {
     saveToHistory();
   }, [selectedGroup, saveToHistory]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateGroupBounds = useCallback((groupId: string) => {
     setGroups(prev => prev.map(group => {
       if (group.id !== groupId) return group;
@@ -813,7 +1109,7 @@ const ModernDiagramCanvas = () => {
   }, [nodes]);
 
   // Save/Load functions
-  const saveDiagram = useCallback(async (name: string, description: string = '') => {
+  const saveDiagram = useCallback(async (name: string, _description: string = '') => {
     const auth = getFirebaseAuth();
     const db = getFirebaseDb();
 
@@ -846,9 +1142,13 @@ const ModernDiagramCanvas = () => {
       alert('Diagram saved successfully!');
       setShowSaveDialog(false);
       loadSavedDiagrams(); // Refresh the list
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving diagram: ', error);
-      alert('Failed to save diagram. Please try again.');
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+        alert('Permission denied. Please check your authentication or contact support.');
+      } else {
+        alert('Failed to save diagram. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -876,8 +1176,14 @@ const ModernDiagramCanvas = () => {
         ...doc.data()
       })) as { id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }[];
       setSavedDiagrams(diagrams);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading diagrams: ', error);
+      // Handle specific Firebase permission errors
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+        console.log('Permission denied - user may not be authenticated or Firestore rules need updating');
+      }
+      // Don't show error to user for permission issues, just fail silently
+      setSavedDiagrams([]);
     } finally {
       setIsLoading(false);
     }
@@ -920,9 +1226,13 @@ const ModernDiagramCanvas = () => {
       await deleteDoc(doc(db, 'diagrams', diagramId));
       loadSavedDiagrams(); // Refresh the list
       alert('Diagram deleted successfully');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting diagram: ', error);
-      alert('Failed to delete diagram');
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+        alert('Permission denied. Unable to delete diagram.');
+      } else {
+        alert('Failed to delete diagram');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -986,16 +1296,27 @@ const ModernDiagramCanvas = () => {
     return () => unsubscribe();
   }, []);
 
-  // Load saved diagrams when component mounts
+  // Load saved diagrams when user changes
   useEffect(() => {
-    const auth = getFirebaseAuth();
-    if (!auth) return;
-
-    const user = auth.currentUser;
     if (user) {
       loadSavedDiagrams();
     }
-  }, [loadSavedDiagrams]);
+  }, [user, loadSavedDiagrams]);
+
+  // Close layout menu when clicking outside
+  useEffect(() => {
+    if (!showLayoutMenu) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (target && !target.closest('[data-layout-menu]')) {
+        setShowLayoutMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showLayoutMenu]);
 
   // Create edge between nodes
   const createEdge = useCallback((sourceId: string, targetId: string, sourceHandle: 'input' | 'output' | 'top' | 'bottom', targetHandle: 'input' | 'output' | 'top' | 'bottom') => {
@@ -1154,6 +1475,21 @@ const ModernDiagramCanvas = () => {
             // Reset zoom and pan
             setViewport({ x: 0, y: 0, zoom: 1 });
             break;
+          case 'e':
+            e.preventDefault();
+            if (e.shiftKey) {
+              // Ctrl+Shift+E: Export as SVG
+              handleExport('svg');
+            } else {
+              // Ctrl+E: Export as PNG
+              handleExport('png');
+            }
+            break;
+          case 'j':
+            e.preventDefault();
+            // Ctrl+J: Export as JSON
+            exportAsJSON();
+            break;
         }
       }
 
@@ -1166,19 +1502,27 @@ const ModernDiagramCanvas = () => {
       // Handle help toggle
       if (e.key === '?' || e.key === 'F1') {
         e.preventDefault();
-        setShowHelp(prev => !prev);
+        setShowKeyboardShortcuts(prev => !prev);
       }
 
       // Handle escape key
       if (e.key === 'Escape') {
         setShowHelp(false);
+        setShowKeyboardShortcuts(false);
+        setShowLayoutMenu(false);
+        setShowProfileMenu(false);
         setContextMenu(null);
+        // Clear selection when pressing Escape
+        setSelectedNode(null);
+        setSelectedEdge(null);
+        setSelectedGroup(null);
+        setSelectedNodes(new Set());
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, exportAsJSON, duplicateSelected, deleteSelected, createGroupFromSelected, selectedNodes.size]);
+  }, [undo, redo, exportAsJSON, handleExport, duplicateSelected, deleteSelected, createGroupFromSelected, selectedNodes.size]);
 
   // Client-side initialization
   useEffect(() => {
@@ -1509,6 +1853,233 @@ const ModernDiagramCanvas = () => {
         ctx.arc(iconX + iconSize / 2, iconY + 16, 1, 0, 2 * Math.PI);
         ctx.fill();
         break;
+      case 'cache':
+        // Cache layers
+        for (let i = 0; i < 3; i++) {
+          ctx.strokeRect(iconX + 2 + i, iconY + 2 + i * 2, iconSize - 4 - i * 2, 4);
+        }
+        break;
+      case 'auth':
+        // Lock
+        ctx.strokeRect(iconX + 6, iconY + 8, iconSize - 12, 10);
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + 6, 4, Math.PI, 0, true);
+        ctx.stroke();
+        ctx.fillRect(iconX + iconSize / 2 - 1, iconY + 12, 2, 2);
+        break;
+      case 'email':
+        // Envelope
+        ctx.strokeRect(iconX + 2, iconY + 6, iconSize - 4, 10);
+        ctx.beginPath();
+        ctx.moveTo(iconX + 2, iconY + 6);
+        ctx.lineTo(iconX + iconSize / 2, iconY + 12);
+        ctx.lineTo(iconX + iconSize - 2, iconY + 6);
+        ctx.stroke();
+        break;
+      case 'search':
+        // Magnifying glass
+        ctx.beginPath();
+        ctx.arc(iconX + 8, iconY + 8, 5, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(iconX + 12, iconY + 12);
+        ctx.lineTo(iconX + 16, iconY + 16);
+        ctx.stroke();
+        break;
+      case 'analytics':
+        // Bar chart
+        ctx.fillRect(iconX + 3, iconY + 12, 3, 6);
+        ctx.fillRect(iconX + 7, iconY + 8, 3, 10);
+        ctx.fillRect(iconX + 11, iconY + 6, 3, 12);
+        ctx.fillRect(iconX + 15, iconY + 10, 3, 8);
+        break;
+      case 'config':
+        // Gear
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 6, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 3, 0, 2 * Math.PI);
+        ctx.fill();
+        // Gear teeth
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI) / 4;
+          const x1 = iconX + iconSize / 2 + Math.cos(angle) * 5;
+          const y1 = iconY + iconSize / 2 + Math.sin(angle) * 5;
+          const x2 = iconX + iconSize / 2 + Math.cos(angle) * 8;
+          const y2 = iconY + iconSize / 2 + Math.sin(angle) * 8;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+        break;
+      case 'cicd':
+        // Git branch
+        ctx.beginPath();
+        ctx.arc(iconX + 4, iconY + 4, 2, 0, 2 * Math.PI);
+        ctx.arc(iconX + iconSize - 4, iconY + 4, 2, 0, 2 * Math.PI);
+        ctx.arc(iconX + iconSize / 2, iconY + iconSize - 4, 2, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(iconX + 6, iconY + 4);
+        ctx.lineTo(iconX + iconSize / 2 - 2, iconY + iconSize - 4);
+        ctx.moveTo(iconX + iconSize - 6, iconY + 4);
+        ctx.lineTo(iconX + iconSize / 2 + 2, iconY + iconSize - 4);
+        ctx.stroke();
+        break;
+      case 'docs':
+        // Document
+        ctx.strokeRect(iconX + 4, iconY + 2, iconSize - 8, 16);
+        ctx.beginPath();
+        ctx.moveTo(iconX + iconSize - 6, iconY + 2);
+        ctx.lineTo(iconX + iconSize - 6, iconY + 6);
+        ctx.lineTo(iconX + iconSize - 4, iconY + 6);
+        ctx.stroke();
+        // Lines
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(iconX + 6, iconY + 8 + i * 2);
+          ctx.lineTo(iconX + iconSize - 8, iconY + 8 + i * 2);
+          ctx.stroke();
+        }
+        break;
+      case 'scheduler':
+        // Calendar
+        ctx.strokeRect(iconX + 3, iconY + 4, iconSize - 6, 14);
+        ctx.fillRect(iconX + 3, iconY + 4, iconSize - 6, 4);
+        // Calendar grid
+        for (let i = 1; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(iconX + 3 + i * 4, iconY + 8);
+          ctx.lineTo(iconX + 3 + i * 4, iconY + 18);
+          ctx.stroke();
+        }
+        for (let i = 1; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(iconX + 3, iconY + 8 + i * 3);
+          ctx.lineTo(iconX + iconSize - 3, iconY + 8 + i * 3);
+          ctx.stroke();
+        }
+        break;
+      case 'users':
+        // People
+        ctx.beginPath();
+        ctx.arc(iconX + 6, iconY + 6, 3, 0, 2 * Math.PI);
+        ctx.arc(iconX + 14, iconY + 6, 3, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillRect(iconX + 3, iconY + 12, 6, 6);
+        ctx.fillRect(iconX + 11, iconY + 12, 6, 6);
+        break;
+      case 'chat':
+        // Message bubble
+        ctx.beginPath();
+        ctx.roundRect(iconX + 2, iconY + 4, iconSize - 4, 10, 3);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(iconX + 6, iconY + 14);
+        ctx.lineTo(iconX + 4, iconY + 18);
+        ctx.lineTo(iconX + 8, iconY + 14);
+        ctx.fill();
+        break;
+      case 'workflow':
+        // Flow diagram
+        ctx.strokeRect(iconX + 2, iconY + 2, 6, 4);
+        ctx.strokeRect(iconX + 12, iconY + 14, 6, 4);
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 3, 0, 2 * Math.PI);
+        ctx.stroke();
+        // Arrows
+        ctx.beginPath();
+        ctx.moveTo(iconX + 8, iconY + 4);
+        ctx.lineTo(iconX + iconSize / 2 - 3, iconY + iconSize / 2);
+        ctx.moveTo(iconX + iconSize / 2 + 3, iconY + iconSize / 2);
+        ctx.lineTo(iconX + 12, iconY + 16);
+        ctx.stroke();
+        break;
+      case 'container':
+        // Docker container
+        ctx.strokeRect(iconX + 2, iconY + 4, iconSize - 4, 12);
+        // Container layers
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(iconX + 2, iconY + 6 + i * 3);
+          ctx.lineTo(iconX + iconSize - 2, iconY + 6 + i * 3);
+          ctx.stroke();
+        }
+        break;
+      case 'router':
+        // Router/proxy
+        ctx.strokeRect(iconX + 6, iconY + 6, 8, 8);
+        // Antenna lines
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(iconX + 2, iconY + 8 + i * 2);
+          ctx.lineTo(iconX + 6, iconY + 8 + i * 2);
+          ctx.moveTo(iconX + 14, iconY + 8 + i * 2);
+          ctx.lineTo(iconX + 18, iconY + 8 + i * 2);
+          ctx.stroke();
+        }
+        break;
+      case 'streaming':
+        // Radio waves
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 2, 0, 2 * Math.PI);
+        ctx.fill();
+        for (let i = 1; i <= 3; i++) {
+          ctx.beginPath();
+          ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 2 + i * 3, 0, Math.PI);
+          ctx.stroke();
+        }
+        break;
+      case 'timer':
+        // Clock
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 8, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(iconX + iconSize / 2, iconY + iconSize / 2);
+        ctx.lineTo(iconX + iconSize / 2, iconY + 6);
+        ctx.moveTo(iconX + iconSize / 2, iconY + iconSize / 2);
+        ctx.lineTo(iconX + iconSize / 2 + 4, iconY + iconSize / 2);
+        ctx.stroke();
+        break;
+      case 'notification':
+        // Bell
+        ctx.beginPath();
+        ctx.moveTo(iconX + 6, iconY + 6);
+        ctx.lineTo(iconX + 6, iconY + 8);
+        ctx.lineTo(iconX + 4, iconY + 14);
+        ctx.lineTo(iconX + 16, iconY + 14);
+        ctx.lineTo(iconX + 14, iconY + 8);
+        ctx.lineTo(iconX + 14, iconY + 6);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(iconX + iconSize / 2, iconY + 16, 2, 0, Math.PI);
+        ctx.stroke();
+        break;
+      case 'secrets':
+        // Key
+        ctx.beginPath();
+        ctx.arc(iconX + 6, iconY + 6, 4, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.strokeRect(iconX + 10, iconY + 8, 8, 2);
+        ctx.strokeRect(iconX + 16, iconY + 6, 2, 2);
+        ctx.strokeRect(iconX + 16, iconY + 10, 2, 2);
+        break;
+      case 'code':
+        // Code brackets
+        ctx.beginPath();
+        ctx.moveTo(iconX + 6, iconY + 4);
+        ctx.lineTo(iconX + 2, iconY + 8);
+        ctx.lineTo(iconX + 2, iconY + 12);
+        ctx.lineTo(iconX + 6, iconY + 16);
+        ctx.moveTo(iconX + 14, iconY + 4);
+        ctx.lineTo(iconX + 18, iconY + 8);
+        ctx.lineTo(iconX + 18, iconY + 12);
+        ctx.lineTo(iconX + 14, iconY + 16);
+        ctx.stroke();
+        break;
       default:
         // Server/service (default)
         ctx.strokeRect(iconX + 2, iconY + 2, iconSize - 4, iconSize - 4);
@@ -1811,6 +2382,7 @@ const ModernDiagramCanvas = () => {
 
   // Main render function
   const render = useCallback(() => {
+    const startTime = performance.now();
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -1820,10 +2392,15 @@ const ModernDiagramCanvas = () => {
     // Save context state
     ctx.save();
 
-    // Clear with gradient background
+    // Clear with gradient background (theme-aware)
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, '#f8fafc');
-    gradient.addColorStop(1, '#e2e8f0');
+    if (isDark) {
+      gradient.addColorStop(0, '#0f172a');
+      gradient.addColorStop(1, '#1e293b');
+    } else {
+      gradient.addColorStop(0, '#f8fafc');
+      gradient.addColorStop(1, '#e2e8f0');
+    }
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1831,8 +2408,8 @@ const ModernDiagramCanvas = () => {
     ctx.translate(viewport.x, viewport.y);
     ctx.scale(viewport.zoom, viewport.zoom);
 
-    // Grid pattern
-    ctx.strokeStyle = '#f1f5f9';
+    // Grid pattern (theme-aware)
+    ctx.strokeStyle = isDark ? '#334155' : '#f1f5f9';
     ctx.lineWidth = 1 / viewport.zoom;
     const gridSize = 20;
 
@@ -1858,18 +2435,21 @@ const ModernDiagramCanvas = () => {
       ctx.stroke();
     }
 
-    // Draw groups (background layer)
-    groups.forEach(group => {
+    // Draw groups (only visible ones in viewport)
+    const visibleGroups = getVisibleGroups();
+    visibleGroups.forEach(group => {
       drawGroup(ctx, group, group.id === selectedGroup);
     });
 
-    // Draw edges
-    edges.forEach(edge => {
+    // Draw edges (only visible ones in viewport)
+    const visibleEdges = getVisibleEdges();
+    visibleEdges.forEach(edge => {
       drawEdge(ctx, edge, edge.id === selectedEdge);
     });
 
-    // Draw nodes (only visible ones, and hide collapsed group nodes)
-    nodes.forEach(node => {
+    // Draw nodes (only visible ones in viewport, and hide collapsed group nodes)
+    const visibleNodes = getVisibleNodes();
+    visibleNodes.forEach(node => {
       // Check if node is in a collapsed group
       const parentGroup = groups.find(group =>
         group.nodeIds.includes(node.id) && group.isCollapsed
@@ -1880,15 +2460,17 @@ const ModernDiagramCanvas = () => {
       }
     });
 
-    // Draw packets
+    // Draw packets (only visible ones)
     packets.forEach(packet => {
-      drawPacket(ctx, packet);
+      if (isInViewport(packet.x - packet.size, packet.y - packet.size, packet.size * 2, packet.size * 2)) {
+        drawPacket(ctx, packet);
+      }
     });
 
-    // Draw selection rectangles for multi-selected nodes
+    // Draw selection rectangles for multi-selected nodes (only visible ones)
     selectedNodes.forEach(nodeId => {
       const node = nodes.find(n => n.id === nodeId);
-      if (node && node.isVisible) {
+      if (node && node.isVisible && isInViewport(node.x, node.y, node.width, node.height)) {
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 2 / viewport.zoom;
         ctx.setLineDash([5 / viewport.zoom, 5 / viewport.zoom]);
@@ -1938,9 +2520,25 @@ const ModernDiagramCanvas = () => {
       }
     }
 
+    // Update performance stats
+    const endTime = performance.now();
+    const currentVisibleNodes = getVisibleNodes();
+    const currentVisibleEdges = getVisibleEdges();
+    const currentVisibleGroups = getVisibleGroups();
+
+    setPerformanceStats({
+      totalNodes: nodes.length,
+      visibleNodes: currentVisibleNodes.length,
+      totalEdges: edges.length,
+      visibleEdges: currentVisibleEdges.length,
+      totalGroups: groups.length,
+      visibleGroups: currentVisibleGroups.length,
+      lastRenderTime: endTime - startTime
+    });
+
     // Restore context
     ctx.restore();
-  }, [nodes, edges, groups, packets, selectedNode, selectedEdge, selectedNodes, selectedGroup, viewport, isConnecting, connectionStart, connectionPreview, drawNode, drawEdge, drawGroup, drawPacket]);
+  }, [nodes, edges, groups, packets, selectedNode, selectedEdge, selectedNodes, selectedGroup, viewport, isConnecting, connectionStart, connectionPreview, drawNode, drawEdge, drawGroup, drawPacket, getVisibleNodes, getVisibleEdges, getVisibleGroups, isInViewport]);
 
   // Animation loop
   const animate = useCallback(() => {
@@ -1971,9 +2569,10 @@ const ModernDiagramCanvas = () => {
         };
       }).filter(Boolean) as Packet[];
 
-      // Add new packets for active animations
+      // Add new packets for active animations (only for visible edges)
+      const visibleEdgeIds = new Set(getVisibleEdges().map(edge => edge.id));
       Object.entries(animationConfigs).forEach(([edgeId, config]) => {
-        if (config.enabled && frameCountRef.current % config.frequency === 0) {
+        if (config.enabled && visibleEdgeIds.has(edgeId) && frameCountRef.current % config.frequency === 0) {
           const edge = edges.find(e => e.id === edgeId);
           if (edge) {
             const position = getPacketPosition(edge, 0);
@@ -2331,22 +2930,28 @@ const ModernDiagramCanvas = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen w-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
       {/* Left Sidebar */}
-      <div className="w-[480px] bg-white border-r border-gray-200 flex flex-col min-h-0">
+      <div className="w-[480px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-200 flex-shrink-0 bg-white z-20">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-900 z-20">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Palette className="w-4 h-4 text-white" />
+            <div className="w-16 h-16">
+              <NextImage
+                src="/logo.png"
+                alt="NexFlow Logo"
+                width={64}
+                height={64}
+                className="w-full h-full object-contain rounded-xl"
+              />
             </div>
             <h2 className="text-lg font-semibold text-gray-900">NexFlow</h2>
           </div>
 
           {/* Panel Tabs */}
-          <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 p-2">
+          <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 p-2">
             {[
-              { id: 'templates', label: 'Items', icon: Palette },
+              { id: 'templates', label: 'Items', icon: Square },
               { id: 'groups', label: 'Groups', icon: Layers },
               { id: 'animations', label: 'Animate', icon: Play },
               { id: 'nodes', label: 'Node', icon: Circle },
@@ -2375,12 +2980,21 @@ const ModernDiagramCanvas = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">Node Templates</h3>
-                <div className="text-xs text-gray-500">
-                  {NODE_TEMPLATES.filter(template =>
-                    template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    template.description.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).length} / {NODE_TEMPLATES.length}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowCustomNodeBuilder(true)}
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                    title="Create Custom Node"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <div className="text-xs text-gray-500">
+                    {allNodeTemplates.filter((template) =>
+                      template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      template.description.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length} / {allNodeTemplates.length}
+                  </div>
                 </div>
               </div>
 
@@ -2415,7 +3029,7 @@ const ModernDiagramCanvas = () => {
               </p>
 
               <div className="grid grid-cols-2 gap-3">
-                {NODE_TEMPLATES
+                {allNodeTemplates
                   .filter(template =>
                     template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -3196,6 +3810,74 @@ const ModernDiagramCanvas = () => {
                 </button>
               </div>
 
+              {/* Layout Controls */}
+              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+                <div className="relative" data-layout-menu>
+                  <button
+                    onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                    disabled={nodes.length === 0 || isLayouting}
+                    className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Auto Layout"
+                  >
+                    {isLayouting ? (
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                    ) : (
+                      <Workflow className="w-4 h-4" />
+                    )}
+                  </button>
+
+                  {showLayoutMenu && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px]">
+                      <div className="p-2">
+                        <div className="text-xs font-medium text-gray-500 mb-2">Layout Algorithms</div>
+                        <button
+                          onClick={() => applyAutoLayout('horizontal')}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                        >
+                          <ArrowRight className="w-3 h-3" />
+                          Horizontal Flow
+                        </button>
+                        <button
+                          onClick={() => applyAutoLayout('vertical')}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                        >
+                          <ArrowRight className="w-3 h-3 rotate-90" />
+                          Vertical Flow
+                        </button>
+                        <button
+                          onClick={() => applyAutoLayout('tree')}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                        >
+                          <GitBranch className="w-3 h-3" />
+                          Tree Layout
+                        </button>
+                        <button
+                          onClick={() => applyAutoLayout('radial')}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                        >
+                          <Radio className="w-3 h-3" />
+                          Radial Layout
+                        </button>
+                        <button
+                          onClick={() => applyAutoLayout('force')}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                        >
+                          <Zap className="w-3 h-3" />
+                          Force Layout
+                        </button>
+                        <button
+                          onClick={() => applyAutoLayout('compact')}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                        >
+                          <Layers className="w-3 h-3" />
+                          Compact Layout
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* View Controls */}
               <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
                 <button
@@ -3257,7 +3939,6 @@ const ModernDiagramCanvas = () => {
                 <button
                   className="flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors text-sm font-medium"
                   onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
                     const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
                     if (dropdown) {
                       dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
@@ -3275,25 +3956,50 @@ const ModernDiagramCanvas = () => {
                   }}
                 >
                   <button
-                    onClick={exportAsPNG}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm"
+                    onClick={() => handleExport('png')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
                   >
-                    <Image className="w-4 h-4" />
+                    <Image className="w-4 h-4" aria-hidden="true" />
                     Export as PNG
+                    <span className="ml-auto text-xs text-gray-400">Ctrl+E</span>
                   </button>
                   <button
-                    onClick={exportAsSVG}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm"
+                    onClick={() => handleExport('svg')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
                   >
-                    <Image className="w-4 h-4" />
+                    <Image className="w-4 h-4" aria-hidden="true" />
                     Export as SVG
+                    <span className="ml-auto text-xs text-gray-400">Ctrl+Shift+E</span>
+                  </button>
+                  <button
+                    onClick={() => handleExport('pdf')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Export as PDF
+                  </button>
+                  <button
+                    onClick={() => handleExport('jpg')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                  >
+                    <Image className="w-4 h-4" aria-hidden="true" />
+                    Export as JPG
+                  </button>
+                  <hr className="border-gray-200 dark:border-gray-600" />
+                  <button
+                    onClick={() => setShowExportDialog(true)}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Export Options...
                   </button>
                   <button
                     onClick={exportAsJSON}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm border-t border-gray-200 dark:border-gray-600"
                   >
                     <FileJson className="w-4 h-4" />
                     Export as JSON
+                    <span className="ml-auto text-xs text-gray-400">Ctrl+J</span>
                   </button>
                   <label className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm cursor-pointer border-t border-gray-100">
                     <Save className="w-4 h-4" />
@@ -3307,6 +4013,15 @@ const ModernDiagramCanvas = () => {
                   </label>
                 </div>
               </div>
+
+              {/* Performance Stats */}
+              <button
+                onClick={() => setShowPerformanceStats(!showPerformanceStats)}
+                className={`p-2 rounded-md transition-colors ${showPerformanceStats ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
+                title="Toggle Performance Stats"
+              >
+                <BarChart3 className="w-4 h-4" />
+              </button>
 
               {/* Help */}
               <button
@@ -3382,14 +4097,14 @@ const ModernDiagramCanvas = () => {
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
                       >
-                        <Palette className="w-4 h-4" />
+                        <Square className="w-4 h-4" />
                         Dashboard
                       </button>
 
                       <button
                         onClick={() => {
                           setShowProfileMenu(false);
-                          setShowHelp(true);
+                          setShowKeyboardShortcuts(true);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
                       >
@@ -3397,7 +4112,13 @@ const ModernDiagramCanvas = () => {
                         Help & Shortcuts
                       </button>
 
-                      <div className="border-t border-gray-100 my-1"></div>
+                      <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+
+                      <div className="px-4 py-2">
+                        <ThemeToggle />
+                      </div>
+
+                      <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
 
                       <button
                         onClick={() => {
@@ -4023,7 +4744,7 @@ const ModernDiagramCanvas = () => {
                                     setShowTemplatesDialog(false);
                                     alert('Diagram imported successfully!');
                                   }
-                                } catch (error) {
+                                } catch {
                                   alert('Invalid JSON file');
                                 }
                               };
@@ -4039,6 +4760,169 @@ const ModernDiagramCanvas = () => {
                         </label>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Export Options Dialog */}
+          {showExportDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-md w-full mx-4">
+                <div className="p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Export Options</h2>
+
+                  <div className="space-y-4">
+                    {/* Format Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Format</label>
+                      <select
+                        value={exportFormat}
+                        onChange={(e) => setExportFormat(e.target.value as 'png' | 'svg' | 'pdf' | 'jpg')}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      >
+                        <option value="png">PNG (Recommended)</option>
+                        <option value="svg">SVG (Vector)</option>
+                        <option value="pdf">PDF (Document)</option>
+                        <option value="jpg">JPG (Compressed)</option>
+                      </select>
+                    </div>
+
+                    {/* Quality/Scale Settings */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Scale/Quality: {exportFormat === 'jpg' ? Math.round(exportOptions.quality * 100) + '%' : exportOptions.scale + 'x'}
+                      </label>
+                      <input
+                        type="range"
+                        min={exportFormat === 'jpg' ? 0.1 : 1}
+                        max={exportFormat === 'jpg' ? 1 : 4}
+                        step={exportFormat === 'jpg' ? 0.05 : 0.5}
+                        value={exportFormat === 'jpg' ? exportOptions.quality : exportOptions.scale}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (exportFormat === 'jpg') {
+                            setExportOptions(prev => ({ ...prev, quality: value }));
+                          } else {
+                            setExportOptions(prev => ({ ...prev, scale: value }));
+                          }
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Theme Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</label>
+                      <select
+                        value={exportOptions.theme}
+                        onChange={(e) => setExportOptions(prev => ({ ...prev, theme: e.target.value as 'current' | 'light' | 'dark' }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      >
+                        <option value="current">Current Theme</option>
+                        <option value="light">Light Theme</option>
+                        <option value="dark">Dark Theme</option>
+                      </select>
+                    </div>
+
+                    {/* Additional Options */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={exportOptions.includeBackground}
+                          onChange={(e) => setExportOptions(prev => ({ ...prev, includeBackground: e.target.checked }))}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Include background</span>
+                      </label>
+
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={exportOptions.includeGrid}
+                          onChange={(e) => setExportOptions(prev => ({ ...prev, includeGrid: e.target.checked }))}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Include grid</span>
+                      </label>
+
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={exportOptions.includeBranding}
+                          onChange={(e) => setExportOptions(prev => ({ ...prev, includeBranding: e.target.checked }))}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Include NexFlow watermark</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => setShowExportDialog(false)}
+                      className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleExport();
+                        setShowExportDialog(false);
+                      }}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Export {exportFormat.toUpperCase()}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Performance Stats */}
+          {showPerformanceStats && (
+            <div className="absolute bottom-6 left-6 w-64 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10">
+              <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Performance Stats</span>
+                  <button
+                    onClick={() => setShowPerformanceStats(false)}
+                    className="ml-auto p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-3 space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-gray-600 dark:text-gray-400">Nodes:</div>
+                  <div className="text-gray-900 dark:text-white font-mono">
+                    {performanceStats.visibleNodes}/{performanceStats.totalNodes}
+                  </div>
+
+                  <div className="text-gray-600 dark:text-gray-400">Edges:</div>
+                  <div className="text-gray-900 dark:text-white font-mono">
+                    {performanceStats.visibleEdges}/{performanceStats.totalEdges}
+                  </div>
+
+                  <div className="text-gray-600 dark:text-gray-400">Groups:</div>
+                  <div className="text-gray-900 dark:text-white font-mono">
+                    {performanceStats.visibleGroups}/{performanceStats.totalGroups}
+                  </div>
+
+                  <div className="text-gray-600 dark:text-gray-400">Render:</div>
+                  <div className="text-gray-900 dark:text-white font-mono">
+                    {performanceStats.lastRenderTime.toFixed(2)}ms
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Culling saves {Math.round(((performanceStats.totalNodes + performanceStats.totalEdges + performanceStats.totalGroups) - (performanceStats.visibleNodes + performanceStats.visibleEdges + performanceStats.visibleGroups)) / Math.max(1, performanceStats.totalNodes + performanceStats.totalEdges + performanceStats.totalGroups) * 100)}% of rendering
                   </div>
                 </div>
               </div>
@@ -4116,6 +5000,19 @@ const ModernDiagramCanvas = () => {
 
         </div>
       </div>
+
+      {/* Keyboard Shortcuts Panel */}
+      <KeyboardShortcutsPanel
+        isOpen={showKeyboardShortcuts}
+        onClose={() => setShowKeyboardShortcuts(false)}
+      />
+
+      {/* Custom Node Builder */}
+      <CustomNodeBuilder
+        isOpen={showCustomNodeBuilder}
+        onClose={() => setShowCustomNodeBuilder(false)}
+        onSave={handleSaveCustomNodeTemplate}
+      />
     </div>
   );
 };

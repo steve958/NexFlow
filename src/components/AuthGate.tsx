@@ -2,7 +2,9 @@
 import { ReactNode, useEffect, useState } from "react";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { Palette, Star, Users, Zap, ArrowRight, Github } from "lucide-react";
+import { Star, Users, Zap, ArrowRight, Github } from "lucide-react";
+import Image from "next/image";
+import { ThemeToggleCompact } from "./ThemeToggle";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<null | { uid: string; email?: string }>(null);
@@ -50,11 +52,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   // Show loading during SSR and initial mount
   if (!mounted || loading) {
     return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading NexFlow</h2>
-          <p className="text-gray-600">Preparing your workspace...</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Loading NexFlow</h2>
+          <p className="text-gray-600 dark:text-gray-300">Preparing your workspace...</p>
         </div>
       </div>
     );
@@ -66,7 +68,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Palette className="w-8 h-8 text-red-600" />
+            <Zap className="w-8 h-8 text-red-600" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Configuration Error</h2>
           <p className="text-gray-600 mb-4">
@@ -89,27 +91,34 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200">
+        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <Palette className="w-6 h-6 text-white" />
+                <div className="w-16 h-16">
+                  <Image
+                    src="/logo.png"
+                    alt="NexFlow Logo"
+                    width={64}
+                    height={64}
+                    className="w-full h-full object-contain rounded-xl"
+                  />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">NexFlow</h1>
-                  <p className="text-sm text-gray-600">Architecture Visualization Platform</p>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">NexFlow</h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Architecture Visualization Platform</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <a href="#features" className="text-gray-600 hover:text-gray-900 text-sm font-medium">Features</a>
-                <a href="#pricing" className="text-gray-600 hover:text-gray-900 text-sm font-medium">Pricing</a>
-                <button className="flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium">
+                <a href="#features" className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white text-sm font-medium">Features</a>
+                <a href="#pricing" className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white text-sm font-medium">Pricing</a>
+                <button className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white text-sm font-medium">
                   <Github className="w-4 h-4" />
                   GitHub
                 </button>
+                <ThemeToggleCompact />
               </div>
             </div>
           </div>
@@ -164,7 +173,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Palette className="w-4 h-4 text-orange-600" />
+                    <Star className="w-4 h-4 text-orange-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-1">Rich Templates</h3>
@@ -190,8 +199,14 @@ export default function AuthGate({ children }: { children: ReactNode }) {
               <div className="w-full max-w-md">
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
                   <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <Palette className="w-8 h-8 text-white" />
+                    <div className="w-24 h-24 mx-auto mb-4">
+                      <Image
+                        src="/logo.png"
+                        alt="NexFlow Logo"
+                        width={96}
+                        height={96}
+                        className="w-full h-full object-contain rounded-2xl"
+                      />
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">Welcome to NexFlow</h3>
                     <p className="text-gray-600">Sign in to start creating amazing diagrams</p>

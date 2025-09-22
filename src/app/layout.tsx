@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "NexFlow",
@@ -8,9 +9,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-white text-gray-900 antialiased">
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen antialiased transition-colors duration-300 ease-in-out">
+        <ThemeProvider defaultTheme="system" storageKey="nexflow-theme">
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
