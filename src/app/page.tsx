@@ -272,9 +272,9 @@ export default function Home() {
                               </defs>
 
                               {/* Draw edges first (behind nodes) */}
-                              {project.data.edges?.slice(0, 10).map((edge: any, idx: number) => {
-                                const sourceNode = project.data.nodes.find((n: any) => n.id === edge.sourceId);
-                                const targetNode = project.data.nodes.find((n: any) => n.id === edge.targetId);
+                              {project.data?.edges?.slice(0, 10).map((edge: { id: string; sourceId: string; targetId: string }, idx: number) => {
+                                const sourceNode = project.data?.nodes.find((n: { id: string; x: number; y: number; width: number; height: number }) => n.id === edge.sourceId);
+                                const targetNode = project.data?.nodes.find((n: { id: string; x: number; y: number; width: number; height: number }) => n.id === edge.targetId);
                                 if (!sourceNode || !targetNode) return null;
 
                                 const scale = 0.3;
@@ -316,7 +316,7 @@ export default function Home() {
                               })}
 
                               {/* Draw nodes */}
-                              {project.data.nodes.slice(0, 8).map((node: any, idx: number) => {
+                              {project.data?.nodes.slice(0, 8).map((node: { x?: number; y?: number; width?: number; height?: number; color?: string; borderColor?: string }, idx: number) => {
                                 const scale = 0.3;
                                 const x = (node.x || 0) * scale + 50;
                                 const y = (node.y || 0) * scale + 30;
