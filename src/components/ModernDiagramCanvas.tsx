@@ -82,6 +82,7 @@ interface AnimationConfig {
 interface NodeGroup {
   id: string;
   label: string;
+  description?: string;
   x: number;
   y: number;
   width: number;
@@ -392,27 +393,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   useEffect(() => {
     if (projectId) {
       try {
-        // First, let's inspect localStorage contents
-        console.log('=== LOCALSTORAGE DEBUG ===');
         const projectsJson = localStorage.getItem('nexflow-projects');
-        console.log('Raw localStorage projects:', projectsJson);
-        if (projectsJson) {
-          const projects = JSON.parse(projectsJson);
-          console.log('Parsed projects:', projects);
-          console.log('Number of projects:', projects.length);
-          projects.forEach((p: { id: string; name: string; data?: { nodes?: unknown[] } }) => {
-            console.log(`Project ${p.id}: ${p.name}, nodes: ${p.data?.nodes?.length || 0}`);
-          });
-        }
 
         import('@/lib/projectStorage').then(({ getProject }) => {
           const project = getProject(projectId);
 
           if (project && project.data) {
-            console.log('=== PROJECT LOADING DEBUG ===');
-            console.log('Project data found:', project);
-            console.log('Project.data:', project.data);
-            console.log('Project.data.nodes:', project.data.nodes);
 
             // Load project data into the canvas
             if (project.data.nodes && Array.isArray(project.data.nodes) && project.data.nodes.length > 0) {
@@ -427,10 +413,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               })) as Node[];
 
               setNodes(processedNodes);
-              console.log('Set nodes:', processedNodes.length);
-              console.log('First processed node:', processedNodes[0]);
             } else {
-              console.log('No nodes found in project data');
               setNodes([]);
             }
 
@@ -446,10 +429,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               })) as Edge[];
 
               setEdges(processedEdges);
-              console.log('Set edges:', processedEdges.length);
-              console.log('First processed edge:', processedEdges[0]);
             } else {
-              console.log('No edges found in project data');
               setEdges([]);
             }
 
@@ -459,9 +439,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             setActivePanel('nodes');
             // Reset viewport to ensure nodes are visible
             setViewport({ x: 0, y: 0, zoom: 1 });
-            console.log('Loaded project:', project.name, 'with', project.data.nodes?.length || 0, 'nodes');
           } else {
-            console.log('Project not found:', projectId);
             // If no project found, stay on templates panel
             setActivePanel('templates');
           }
@@ -491,6 +469,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }, [viewport]);
 
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
+  const [draggedGroup, setDraggedGroup] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activePanel, setActivePanel] = useState<'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls'>('templates');
   const [draggedTemplate, setDraggedTemplate] = useState<NodeTemplate | null>(null);
@@ -631,6 +610,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   ];
 
   const [animationConfigs, setAnimationConfigs] = useState<Record<string, AnimationConfig>>({});
+  const [allAnimationsRunning, setAllAnimationsRunning] = useState(false);
 
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
@@ -744,7 +724,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     const updatedTemplates = [...customNodeTemplates, template];
     localStorage.setItem('nexflow-custom-node-templates', JSON.stringify(updatedTemplates));
 
-    console.log('Custom node template saved:', template);
   }, [customNodeTemplates]);
 
   // Load custom templates from localStorage on mount
@@ -1138,7 +1117,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
     const db = getFirebaseDb();
     if (!db) {
-      console.log('Firebase not configured, skipping saved diagrams load');
       setSavedDiagrams([]);
       return;
     }
@@ -1224,8 +1202,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }, [loadSavedDiagrams]);
 
   const loadTemplate = useCallback((templateId: string) => {
+    console.log('🔵 Loading template:', templateId);
     const template = DIAGRAM_TEMPLATES.find(t => t.id === templateId);
-    if (!template) return;
+    if (!template) {
+      return;
+    }
 
     // Clear current state
     setSelectedNode(null);
@@ -1254,19 +1235,64 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       nodeIds: group.nodeIds.map(nodeId => nodeIdMap.get(nodeId) || nodeId)
     }));
 
-    setNodes(uniqueNodes);
-    setEdges(uniqueEdges);
-    setGroups(uniqueGroups);
-    setAnimationConfigs({});
+    // Apply horizontal layout to all templates
+    const layoutNodes: LayoutNode[] = uniqueNodes.map(node => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      label: node.label,
+      type: node.type,
+    }));
 
-    // Reset viewport
-    setViewport({ x: 0, y: 0, zoom: 1 });
+    const layoutEdges: LayoutEdge[] = uniqueEdges.map(edge => ({
+      id: edge.id,
+      from: edge.sourceId,
+      to: edge.targetId,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+    }));
 
-    // Save to history for undo/redo
-    saveToHistory();
+    const layoutOptions = layoutPresets.horizontal;
 
-    setShowTemplatesDialog(false);
-    alert(`Loaded template: ${template.name}`);
+    autoLayout(layoutNodes, layoutEdges, layoutOptions).then(layoutedNodes => {
+      const layoutedUniqueNodes = uniqueNodes.map(node => {
+        const layoutedNode = layoutedNodes.find(ln => ln.id === node.id);
+        if (layoutedNode) {
+          return {
+            ...node,
+            x: layoutedNode.x,
+            y: layoutedNode.y,
+          };
+        }
+        return node;
+      });
+
+      setNodes(layoutedUniqueNodes);
+      setEdges(uniqueEdges);
+      setGroups([]);  // Clear groups when applying auto-layout
+      setAnimationConfigs({});
+
+      // Reset viewport
+      setViewport({ x: 0, y: 0, zoom: 1 });
+
+      // Save to history for undo/redo
+      saveToHistory();
+
+      setShowTemplatesDialog(false);
+      alert(`Loaded template: ${template.name}`);
+    }).catch(() => {
+      // Fallback if layout fails
+      setNodes(uniqueNodes);
+      setEdges(uniqueEdges);
+      setGroups(uniqueGroups);
+      setAnimationConfigs({});
+      setViewport({ x: 0, y: 0, zoom: 1 });
+      saveToHistory();
+      setShowTemplatesDialog(false);
+      alert(`Loaded template: ${template.name}`);
+    });
   }, [DIAGRAM_TEMPLATES, saveToHistory]);
 
   // Auth state listener
@@ -2778,11 +2804,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         }
 
         if (!clickedNode) {
-          // Select the group
+          // Select and prepare to drag the group
           setSelectedGroup(group.id);
           setSelectedNode(null);
           setSelectedEdge(null);
           setSelectedNodes(new Set());
+          setDraggedGroup(group.id);
+          setDragOffset({ x: worldPos.x - group.x, y: worldPos.y - group.y });
           return;
         }
       }
@@ -2891,6 +2919,37 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       return;
     }
 
+    // Handle group dragging
+    if (draggedGroup) {
+      const group = groups.find(g => g.id === draggedGroup);
+      if (group) {
+        const newX = worldPos.x - dragOffset.x;
+        const newY = worldPos.y - dragOffset.y;
+
+        // Snap to grid
+        const gridSize = 20;
+        const snappedX = Math.round(newX / gridSize) * gridSize;
+        const snappedY = Math.round(newY / gridSize) * gridSize;
+
+        // Calculate delta movement
+        const deltaX = snappedX - group.x;
+        const deltaY = snappedY - group.y;
+
+        // Move group
+        setGroups(prev => prev.map(g =>
+          g.id === draggedGroup ? { ...g, x: snappedX, y: snappedY } : g
+        ));
+
+        // Move all nodes in the group
+        setNodes(prev => prev.map(node =>
+          group.nodeIds.includes(node.id)
+            ? { ...node, x: node.x + deltaX, y: node.y + deltaY }
+            : node
+        ));
+      }
+      return;
+    }
+
     if (!draggedNode) return;
 
     const newX = worldPos.x - dragOffset.x;
@@ -2908,40 +2967,49 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
   const handleMouseUp = () => {
     setDraggedNode(null);
+    setDraggedGroup(null);
     setIsPanning(false);
   };
 
-  // Zoom with mouse wheel
-  const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
-    event.preventDefault();
-
+  // Zoom with mouse wheel - using useEffect to add non-passive listener
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
 
-    const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(0.1, Math.min(3, viewport.zoom * zoomFactor));
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
 
-    // Zoom towards mouse position
-    const worldPosBeforeZoom = screenToWorld(mouseX, mouseY);
+      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.1, Math.min(3, viewport.zoom * zoomFactor));
 
-    setViewport(prev => {
-      const newViewport = { ...prev, zoom: newZoom };
-      const worldPosAfterZoom = {
-        x: (mouseX - newViewport.x) / newZoom,
-        y: (mouseY - newViewport.y) / newZoom
-      };
+      // Zoom towards mouse position
+      const worldPosBeforeZoom = screenToWorld(mouseX, mouseY);
 
-      return {
-        ...newViewport,
-        x: newViewport.x + (worldPosAfterZoom.x - worldPosBeforeZoom.x) * newZoom,
-        y: newViewport.y + (worldPosAfterZoom.y - worldPosBeforeZoom.y) * newZoom
-      };
-    });
-  };
+      setViewport(prev => {
+        const newViewport = { ...prev, zoom: newZoom };
+        const worldPosAfterZoom = {
+          x: (mouseX - newViewport.x) / newZoom,
+          y: (mouseY - newViewport.y) / newZoom
+        };
+
+        return {
+          ...newViewport,
+          x: newViewport.x + (worldPosAfterZoom.x - worldPosBeforeZoom.x) * newZoom,
+          y: newViewport.y + (worldPosAfterZoom.y - worldPosBeforeZoom.y) * newZoom
+        };
+      });
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [viewport.zoom, screenToWorld]);
 
   // Don't render complex UI until client-side hydration is complete
   if (!isClient) {
@@ -3730,6 +3798,292 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             </div>
           )}
 
+          {/* Group Properties Panel */}
+          {selectedGroup && (() => {
+            const group = groups.find(g => g.id === selectedGroup);
+            if (!group) return null;
+
+            return (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Group Properties</h3>
+                  <button
+                    onClick={() => setSelectedGroup(null)}
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+
+                {/* Group Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
+                  <input
+                    type="text"
+                    value={group.label}
+                    onChange={(e) => {
+                      setGroups(prev => prev.map(g =>
+                        g.id === selectedGroup ? { ...g, label: e.target.value } : g
+                      ));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Group Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={group.description || ''}
+                    onChange={(e) => {
+                      setGroups(prev => prev.map(g =>
+                        g.id === selectedGroup ? { ...g, description: e.target.value } : g
+                      ));
+                    }}
+                    rows={3}
+                    placeholder="Add a description for this group..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                {/* Colors */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Border Color</label>
+                    <input
+                      type="color"
+                      value={group.borderColor}
+                      onChange={(e) => {
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? { ...g, borderColor: e.target.value } : g
+                        ));
+                      }}
+                      className="w-full h-10 rounded border border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Text Color</label>
+                    <input
+                      type="color"
+                      value={group.color}
+                      onChange={(e) => {
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? { ...g, color: e.target.value } : g
+                        ));
+                      }}
+                      className="w-full h-10 rounded border border-gray-300"
+                    />
+                  </div>
+                </div>
+
+                {/* Background Color with Opacity */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Background</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={(() => {
+                        // Extract hex color from rgba or hex format
+                        if (group.backgroundColor.startsWith('rgba')) {
+                          const match = group.backgroundColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+)/);
+                          if (match) {
+                            const r = parseInt(match[1]).toString(16).padStart(2, '0');
+                            const g = parseInt(match[2]).toString(16).padStart(2, '0');
+                            const b = parseInt(match[3]).toString(16).padStart(2, '0');
+                            return `#${r}${g}${b}`;
+                          }
+                        }
+                        return group.backgroundColor.substring(0, 7);
+                      })()}
+                      onChange={(e) => {
+                        const hexColor = e.target.value;
+                        // Get current opacity
+                        let opacity = 0.1;
+                        if (group.backgroundColor.startsWith('rgba')) {
+                          const match = group.backgroundColor.match(/[\d.]+\)$/);
+                          if (match) opacity = parseFloat(match[0].slice(0, -1));
+                        }
+                        // Convert hex to rgba
+                        const r = parseInt(hexColor.slice(1, 3), 16);
+                        const g = parseInt(hexColor.slice(3, 5), 16);
+                        const b = parseInt(hexColor.slice(5, 7), 16);
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? {
+                            ...g,
+                            backgroundColor: `rgba(${r}, ${g}, ${b}, ${opacity})`
+                          } : g
+                        ));
+                      }}
+                      className="flex-1 h-10 rounded border border-gray-300"
+                    />
+                    <select
+                      value={(() => {
+                        if (group.backgroundColor.startsWith('rgba')) {
+                          const match = group.backgroundColor.match(/[\d.]+\)$/);
+                          if (match) return match[0].slice(0, -1);
+                        }
+                        return '0.1';
+                      })()}
+                      onChange={(e) => {
+                        const opacity = e.target.value;
+                        // Get current color
+                        let r = 59, g = 130, b = 246; // default blue
+                        if (group.backgroundColor.startsWith('rgba')) {
+                          const match = group.backgroundColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+)/);
+                          if (match) {
+                            r = parseInt(match[1]);
+                            g = parseInt(match[2]);
+                            b = parseInt(match[3]);
+                          }
+                        }
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? {
+                            ...g,
+                            backgroundColor: `rgba(${r}, ${g}, ${b}, ${opacity})`
+                          } : g
+                        ));
+                      }}
+                      className="px-2 py-2 border border-gray-300 rounded"
+                    >
+                      <option value="0.05">5%</option>
+                      <option value="0.1">10%</option>
+                      <option value="0.2">20%</option>
+                      <option value="0.3">30%</option>
+                      <option value="0.5">50%</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Padding */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Padding: {group.padding}px
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="50"
+                    value={group.padding}
+                    onChange={(e) => {
+                      setGroups(prev => prev.map(g =>
+                        g.id === selectedGroup ? { ...g, padding: parseInt(e.target.value) } : g
+                      ));
+                    }}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Position & Size */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">X Position</label>
+                    <input
+                      type="number"
+                      value={Math.round(group.x)}
+                      onChange={(e) => {
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? { ...g, x: parseInt(e.target.value) || 0 } : g
+                        ));
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Y Position</label>
+                    <input
+                      type="number"
+                      value={Math.round(group.y)}
+                      onChange={(e) => {
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? { ...g, y: parseInt(e.target.value) || 0 } : g
+                        ));
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Width</label>
+                    <input
+                      type="number"
+                      value={Math.round(group.width)}
+                      onChange={(e) => {
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? { ...g, width: parseInt(e.target.value) || 100 } : g
+                        ));
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Height</label>
+                    <input
+                      type="number"
+                      value={Math.round(group.height)}
+                      onChange={(e) => {
+                        setGroups(prev => prev.map(g =>
+                          g.id === selectedGroup ? { ...g, height: parseInt(e.target.value) || 100 } : g
+                        ));
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Group Info */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p><strong>Nodes in group:</strong> {group.nodeIds.length}</p>
+                    <p><strong>Status:</strong> {group.isCollapsed ? 'Collapsed' : 'Expanded'}</p>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setGroups(prev => prev.map(g =>
+                        g.id === selectedGroup ? { ...g, isCollapsed: !g.isCollapsed } : g
+                      ));
+                    }}
+                    className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+                  >
+                    {group.isCollapsed ? 'Expand' : 'Collapse'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGroups(prev => prev.map(g =>
+                        g.id === selectedGroup ? { ...g, isVisible: !g.isVisible } : g
+                      ));
+                    }}
+                    className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center justify-center gap-2"
+                  >
+                    {group.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    {group.isVisible ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      ungroupSelected();
+                    }}
+                    className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors font-medium"
+                  >
+                    Ungroup
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteSelected();
+                    }}
+                    className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium"
+                  >
+                    Delete Group
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {!selectedNode && !selectedEdge && !selectedGroup && activePanel !== 'animations' && activePanel !== 'templates' && activePanel !== 'groups' && activePanel !== 'controls' && (
             <div className="text-center text-gray-500 py-12">
               <div className="mb-3">
@@ -3747,11 +4101,53 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             {nodes.length} nodes • {edges.length} connections
           </div>
           <button
-            onClick={() => setPackets([])}
-            disabled={packets.length === 0}
-            className="w-full bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => {
+              if (allAnimationsRunning) {
+                // Stop all animations
+                setAnimationConfigs(prev => {
+                  const updated = { ...prev };
+                  Object.keys(updated).forEach(key => {
+                    updated[key] = { ...updated[key], enabled: false };
+                  });
+                  return updated;
+                });
+                setPackets([]);
+                setAllAnimationsRunning(false);
+              } else {
+                // Start all animations
+                setAnimationConfigs(prev => {
+                  const updated = { ...prev };
+                  Object.keys(updated).forEach(key => {
+                    updated[key] = { ...updated[key], enabled: true };
+                  });
+                  return updated;
+                });
+                setAllAnimationsRunning(true);
+              }
+            }}
+            disabled={Object.keys(animationConfigs).length === 0}
+            className={`w-full py-2 px-3 rounded-lg transition-all font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md border ${
+              allAnimationsRunning
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 border-orange-400 hover:shadow-orange-500/50'
+                : 'bg-[#000F22] hover:bg-[#001933] text-[#00D4FF] border-[#00D4FF] hover:shadow-[#00D4FF]/50'
+            }`}
           >
-            Clear All Packets ({packets.length})
+            {allAnimationsRunning ? (
+              <>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="6" y="5" width="4" height="14" rx="1" />
+                  <rect x="14" y="5" width="4" height="14" rx="1" />
+                </svg>
+                Stop All
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                Run All
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -4154,6 +4550,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           if (auth) {
                             try {
                               await signOut(auth);
+                              window.location.href = '/';
                             } catch (error) {
                               console.error('Error signing out:', error);
                             }
@@ -4189,7 +4586,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
             onDrop={handleCanvasDrop}
             onDragOver={handleCanvasDragOver}
             onContextMenu={(e) => e.preventDefault()}
@@ -4993,7 +5389,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 }
               }}
             >
-              {/* Minimap nodes */}
+              {/* Viewport indicator (behind nodes) */}
+              <div
+                className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-20 rounded"
+                style={{
+                  left: `${Math.max(0, -viewport.x * 0.08 + 4)}px`,
+                  top: `${Math.max(0, -viewport.y * 0.08 + 4)}px`,
+                  width: `${Math.min(180, 1000 * 0.08 / viewport.zoom)}px`,
+                  height: `${Math.min(108, 700 * 0.08 / viewport.zoom)}px`,
+                  zIndex: 0
+                }}
+              />
+
+              {/* Minimap nodes (on top) */}
               {nodes.filter(node => node.isVisible).map(node => {
                 const scale = 0.08; // Scale factor for minimap
                 const minimapX = node.x * scale + 4;
@@ -5012,22 +5420,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       height: `${minimapHeight}px`,
                       backgroundColor: node.color,
                       borderColor: node.borderColor,
-                      opacity: selectedNodes.has(node.id) || selectedNode === node.id ? 1 : 0.7
+                      opacity: selectedNodes.has(node.id) || selectedNode === node.id ? 1 : 0.7,
+                      zIndex: 10
                     }}
                   />
                 );
               })}
-
-              {/* Viewport indicator */}
-              <div
-                className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-20 rounded"
-                style={{
-                  left: `${Math.max(0, -viewport.x * 0.08 + 4)}px`,
-                  top: `${Math.max(0, -viewport.y * 0.08 + 4)}px`,
-                  width: `${Math.min(180, 1000 * 0.08 / viewport.zoom)}px`,
-                  height: `${Math.min(108, 700 * 0.08 / viewport.zoom)}px`
-                }}
-              />
             </div>
           </div>
 

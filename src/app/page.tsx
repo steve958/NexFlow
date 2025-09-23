@@ -6,7 +6,7 @@ import NewProjectModal from "@/components/NewProjectModal";
 import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut } from "firebase/auth";
-import { LogOut, Plus, Clock, Star, Folder, Search, Filter, Grid, List, Trash2, Copy } from "lucide-react";
+import { LogOut, Plus, Clock, Star, Folder, Search, Filter, Grid, List, Trash2, Copy, Layers } from "lucide-react";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { getProjects, deleteProject, duplicateProject, getProjectStats, type Project } from "@/lib/projectStorage";
@@ -88,27 +88,37 @@ export default function Home() {
 
   return (
     <AuthGate>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-teal-900 via-blue-900 to-indigo-900 relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-teal-400/20 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-blue-400/20 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-indigo-400/20 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+        </div>
+
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
+
         {/* Header */}
-        <header className="bg-white border-b border-gray-200">
+        <header className="relative z-10 bg-white/10 backdrop-blur-md border-b border-white/20">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-20 h-20">
+                <div className="w-16 h-16">
                   <Image
                     src="/canvas-logo.png"
                     alt="NexFlow Logo"
-                    width={80}
-                    height={80}
-                    className="w-full h-full object-contain rounded-xl"
+                    width={64}
+                    height={64}
+                    className="w-full h-full object-contain rounded-xl drop-shadow-lg"
                   />
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900">NexFlow</h1>
+                <h1 className="text-2xl font-bold text-white">NexFlow</h1>
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                  <div className="w-2 h-2 bg-teal-400 rounded-full animate-pulse"></div>
                   <span>All systems operational</span>
                 </div>
                 <button
@@ -116,7 +126,7 @@ export default function Home() {
                     const auth = getFirebaseAuth();
                     if (auth) signOut(auth);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out
@@ -127,75 +137,75 @@ export default function Home() {
         </header>
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-6 py-8">
+        <main className="relative z-10 max-w-7xl mx-auto px-6 py-8">
           {/* Welcome Section */}
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back!</h2>
-            <p className="text-gray-600">Create, collaborate, and visualize your system architecture.</p>
+            <h2 className="text-4xl font-bold text-white mb-2">Welcome back!</h2>
+            <p className="text-white/60 text-lg">Create, collaborate, and visualize your system architecture.</p>
           </div>
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Link
               href="/app/demo"
-              className="p-6 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all transform hover:scale-105 group"
+              className="p-6 bg-gradient-to-br from-teal-500 to-blue-600 text-white rounded-2xl hover:from-teal-600 hover:to-blue-700 transition-all transform hover:scale-105 group shadow-xl hover:shadow-2xl"
             >
               <div className="flex items-center gap-3 mb-3">
-                <Star className="w-8 h-8" />
+                <Star className="w-8 h-8 group-hover:rotate-12 transition-transform" />
                 <div>
                   <h3 className="text-lg font-semibold">Try Demo</h3>
-                  <p className="text-blue-100 text-sm">Interactive playground</p>
+                  <p className="text-teal-100 text-sm">Interactive playground</p>
                 </div>
               </div>
-              <p className="text-blue-100 text-sm">
+              <p className="text-white/80 text-sm">
                 Explore NexFlow features with our interactive demo scene
               </p>
             </Link>
 
             <button
               onClick={handleNewProject}
-              className="p-6 bg-white border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all text-left group"
+              className="p-6 bg-white/10 backdrop-blur-md border-2 border-white/20 border-dashed rounded-2xl hover:border-white/40 hover:bg-white/15 transition-all text-left group shadow-xl"
             >
               <div className="flex items-center gap-3 mb-3">
-                <Plus className="w-8 h-8 text-gray-400 group-hover:text-blue-600" />
+                <Plus className="w-8 h-8 text-white/70 group-hover:text-white group-hover:rotate-90 transition-all" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">New Project</h3>
-                  <p className="text-gray-500 text-sm">Start from scratch</p>
+                  <h3 className="text-lg font-semibold text-white">New Project</h3>
+                  <p className="text-white/50 text-sm">Start from scratch</p>
                 </div>
               </div>
-              <p className="text-gray-500 text-sm group-hover:text-blue-600">
+              <p className="text-white/60 text-sm group-hover:text-white/80 transition-colors">
                 Create a new architecture diagram
               </p>
             </button>
 
             <button
               onClick={handleUseTemplate}
-              className="p-6 bg-white border border-gray-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all text-left group"
+              className="p-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl hover:border-indigo-400/50 hover:bg-white/15 transition-all text-left group shadow-xl"
             >
               <div className="flex items-center gap-3 mb-3">
-                <Folder className="w-8 h-8 text-gray-400 group-hover:text-purple-600" />
+                <Folder className="w-8 h-8 text-white/70 group-hover:text-indigo-300 transition-colors" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Use Template</h3>
-                  <p className="text-gray-500 text-sm">Quick start</p>
+                  <h3 className="text-lg font-semibold text-white">Use Template</h3>
+                  <p className="text-white/50 text-sm">Quick start</p>
                 </div>
               </div>
-              <p className="text-gray-500 text-sm group-hover:text-purple-600">
+              <p className="text-white/60 text-sm group-hover:text-white/80 transition-colors">
                 Browse pre-built architecture patterns
               </p>
             </button>
           </div>
 
           {/* Projects Section */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 overflow-hidden shadow-2xl">
             {/* Projects Header */}
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-white/20">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">Recent Projects</h3>
+                <h3 className="text-xl font-semibold text-white">Recent Projects</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setViewMode('grid')}
                     className={`p-2 rounded-lg transition-colors ${
-                      viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'
+                      viewMode === 'grid' ? 'bg-teal-500/30 text-teal-300' : 'text-white/50 hover:text-white/80'
                     }`}
                   >
                     <Grid className="w-4 h-4" />
@@ -203,7 +213,7 @@ export default function Home() {
                   <button
                     onClick={() => setViewMode('list')}
                     className={`p-2 rounded-lg transition-colors ${
-                      viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'
+                      viewMode === 'list' ? 'bg-teal-500/30 text-teal-300' : 'text-white/50 hover:text-white/80'
                     }`}
                   >
                     <List className="w-4 h-4" />
@@ -214,16 +224,16 @@ export default function Home() {
               {/* Search and Filter */}
               <div className="flex items-center gap-4">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/40" />
                   <input
                     type="text"
                     placeholder="Search projects..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-white placeholder-white/40"
                   />
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                <button className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-lg hover:bg-white/15 transition-colors text-white/80">
                   <Filter className="w-4 h-4" />
                   Filter
                 </button>
@@ -235,25 +245,167 @@ export default function Home() {
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredProjects.map((project) => (
-                    <div key={project.id} className="group border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-lg transition-all relative">
+                    <div key={project.id} className="group bg-white/5 border border-white/20 rounded-xl overflow-hidden hover:border-teal-400/50 hover:bg-white/10 transition-all relative backdrop-blur-sm">
                       <Link
                         href={project.isDemo ? "/app/demo" : `/app/${project.id}`}
                         className="block"
                       >
-                        <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                          <Folder className="w-12 h-12 text-gray-400" />
+                        <div className="aspect-video bg-gradient-to-br from-teal-500/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden group/preview">
+                          {/* Grid background pattern */}
+                          <div className="absolute inset-0 opacity-20" style={{
+                            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+                            backgroundSize: '20px 20px'
+                          }}></div>
+
+                          {/* Mini canvas preview */}
+                          {project.data?.nodes && project.data.nodes.length > 0 ? (
+                            <svg className="w-full h-full relative z-10 group-hover/preview:scale-105 transition-transform duration-500" viewBox="0 0 400 225" preserveAspectRatio="xMidYMid meet">
+                              {/* Glow effect definitions */}
+                              <defs>
+                                <filter id={`glow-${project.id}`} x="-50%" y="-50%" width="200%" height="200%">
+                                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                                  <feMerge>
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                  </feMerge>
+                                </filter>
+                              </defs>
+
+                              {/* Draw edges first (behind nodes) */}
+                              {project.data.edges?.slice(0, 10).map((edge: any, idx: number) => {
+                                const sourceNode = project.data.nodes.find((n: any) => n.id === edge.sourceId);
+                                const targetNode = project.data.nodes.find((n: any) => n.id === edge.targetId);
+                                if (!sourceNode || !targetNode) return null;
+
+                                const scale = 0.3;
+                                const x1 = (sourceNode.x + sourceNode.width / 2) * scale + 50;
+                                const y1 = (sourceNode.y + sourceNode.height / 2) * scale + 30;
+                                const x2 = (targetNode.x + targetNode.width / 2) * scale + 50;
+                                const y2 = (targetNode.y + targetNode.height / 2) * scale + 30;
+
+                                // Calculate control points for bezier curve
+                                const midX = (x1 + x2) / 2;
+                                const midY = (y1 + y2) / 2;
+                                const dx = x2 - x1;
+                                const dy = y2 - y1;
+                                const offsetX = -dy * 0.2;
+                                const offsetY = dx * 0.2;
+
+                                return (
+                                  <g key={`edge-${idx}`}>
+                                    {/* Edge shadow */}
+                                    <path
+                                      d={`M ${x1} ${y1} Q ${midX + offsetX} ${midY + offsetY} ${x2} ${y2}`}
+                                      stroke="rgba(0,0,0,0.3)"
+                                      strokeWidth="2"
+                                      fill="none"
+                                      transform="translate(1, 1)"
+                                    />
+                                    {/* Main edge */}
+                                    <path
+                                      d={`M ${x1} ${y1} Q ${midX + offsetX} ${midY + offsetY} ${x2} ${y2}`}
+                                      stroke="rgba(100, 200, 255, 0.5)"
+                                      strokeWidth="2"
+                                      fill="none"
+                                      className="group-hover/preview:stroke-teal-300 transition-colors duration-300"
+                                    />
+                                    {/* Arrow head */}
+                                    <circle cx={x2} cy={y2} r="2" fill="rgba(100, 200, 255, 0.6)" />
+                                  </g>
+                                );
+                              })}
+
+                              {/* Draw nodes */}
+                              {project.data.nodes.slice(0, 8).map((node: any, idx: number) => {
+                                const scale = 0.3;
+                                const x = (node.x || 0) * scale + 50;
+                                const y = (node.y || 0) * scale + 30;
+                                const w = (node.width || 100) * scale;
+                                const h = (node.height || 60) * scale;
+
+                                return (
+                                  <g key={idx} className="group/node">
+                                    {/* Node shadow */}
+                                    <rect
+                                      x={x + 2}
+                                      y={y + 2}
+                                      width={w}
+                                      height={h}
+                                      rx="6"
+                                      fill="rgba(0,0,0,0.3)"
+                                    />
+                                    {/* Node background */}
+                                    <rect
+                                      x={x}
+                                      y={y}
+                                      width={w}
+                                      height={h}
+                                      rx="6"
+                                      fill={node.color || '#3b82f6'}
+                                      fillOpacity="0.8"
+                                      stroke={node.borderColor || '#1e40af'}
+                                      strokeWidth="2"
+                                      filter={`url(#glow-${project.id})`}
+                                      className="group-hover/preview:fill-opacity-100 transition-all duration-300"
+                                    />
+                                    {/* Node highlight */}
+                                    <rect
+                                      x={x}
+                                      y={y}
+                                      width={w}
+                                      height={h * 0.3}
+                                      rx="6"
+                                      fill="rgba(255,255,255,0.2)"
+                                    />
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          ) : (
+                            <div className="relative z-10">
+                              <Folder className="w-16 h-16 text-white/30 group-hover:text-teal-300 group-hover:scale-110 transition-all duration-300" />
+                            </div>
+                          )}
+
+                          {/* Stats overlay */}
+                          {project.data?.nodes && project.data.nodes.length > 0 && (
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 pt-8">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-3 text-white/80">
+                                  <div className="flex items-center gap-1">
+                                    <Layers className="w-3 h-3" />
+                                    <span>{project.data.nodes.length} nodes</span>
+                                  </div>
+                                  {project.data.edges && project.data.edges.length > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                      </svg>
+                                      <span>{project.data.edges.length} edges</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="px-2 py-1 bg-teal-500/30 text-teal-300 rounded-full text-xs font-medium">
+                                  Preview
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Hover overlay effect */}
+                          <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/0 to-blue-500/0 group-hover/preview:from-teal-500/10 group-hover/preview:to-blue-500/10 transition-all duration-500"></div>
                         </div>
                         <div className="p-4">
                           <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                            <h4 className="font-semibold text-white group-hover:text-teal-300 transition-colors">
                               {project.name}
                             </h4>
                             {project.isDemo && (
-                              <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded-full">Demo</span>
+                              <span className="px-2 py-1 bg-teal-500/30 text-teal-300 text-xs rounded-full">Demo</span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{project.description}</p>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
+                          <p className="text-sm text-white/60 mb-3 line-clamp-2">{project.description}</p>
+                          <div className="flex items-center justify-between text-xs text-white/50">
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {formatLastModified(project.lastModified)}
@@ -266,12 +418,12 @@ export default function Home() {
                           {project.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {project.tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                <span key={tag} className="px-2 py-1 bg-white/10 text-white/70 text-xs rounded border border-white/20">
                                   {tag}
                                 </span>
                               ))}
                               {project.tags.length > 3 && (
-                                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                <span className="px-2 py-1 bg-white/10 text-white/70 text-xs rounded border border-white/20">
                                   +{project.tags.length - 3}
                                 </span>
                               )}
@@ -364,46 +516,46 @@ export default function Home() {
 
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Folder className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 bg-teal-500/30 rounded-lg flex items-center justify-center">
+                  <Folder className="w-4 h-4 text-teal-300" />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{projectStats.total}</span>
+                <span className="text-2xl font-bold text-white">{projectStats.total}</span>
               </div>
-              <p className="text-sm text-gray-600">Total Projects</p>
+              <p className="text-sm text-white/60">Total Projects</p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Star className="w-4 h-4 text-green-600" />
+                <div className="w-8 h-8 bg-blue-500/30 rounded-lg flex items-center justify-center">
+                  <Star className="w-4 h-4 text-blue-300" />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{projectStats.categories}</span>
+                <span className="text-2xl font-bold text-white">{projectStats.categories}</span>
               </div>
-              <p className="text-sm text-gray-600">Categories</p>
+              <p className="text-sm text-white/60">Categories</p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Star className="w-4 h-4 text-purple-600" />
+                <div className="w-8 h-8 bg-indigo-500/30 rounded-lg flex items-center justify-center">
+                  <Star className="w-4 h-4 text-indigo-300" />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{projectStats.tags}</span>
+                <span className="text-2xl font-bold text-white">{projectStats.tags}</span>
               </div>
-              <p className="text-sm text-gray-600">Unique Tags</p>
+              <p className="text-sm text-white/60">Unique Tags</p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-orange-600" />
+                <div className="w-8 h-8 bg-purple-500/30 rounded-lg flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-purple-300" />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">
+                <span className="text-2xl font-bold text-white">
                   {projectStats.lastModified ? formatLastModified(projectStats.lastModified.toISOString()) : 'None'}
                 </span>
               </div>
-              <p className="text-sm text-gray-600">Last Activity</p>
+              <p className="text-sm text-white/60">Last Activity</p>
             </div>
           </div>
         </main>

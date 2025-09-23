@@ -104,8 +104,39 @@ export default function TemplateBrowser({ isOpen, onClose, onTemplateSelected }:
           targetId: nodeIdMap.get(edge.targetId) || edge.targetId
         }));
 
+        // Apply horizontal layout to template nodes
+        const { autoLayout, layoutPresets } = await import('@/lib/autoLayout');
+        const layoutNodes = uniqueNodes.map(node => ({
+          id: node.id,
+          x: node.x,
+          y: node.y,
+          width: node.width,
+          height: node.height,
+          label: node.label,
+          type: node.type,
+        }));
+
+        const layoutEdges = uniqueEdges.map(edge => ({
+          id: edge.id,
+          from: edge.sourceId,
+          to: edge.targetId,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+        }));
+
+        const layoutedNodes = await autoLayout(layoutNodes, layoutEdges, layoutPresets.horizontal);
+
+        // Update nodes with layouted positions
+        const finalNodes = uniqueNodes.map(node => {
+          const layoutedNode = layoutedNodes.find(ln => ln.id === node.id);
+          if (layoutedNode) {
+            return { ...node, x: layoutedNode.x, y: layoutedNode.y };
+          }
+          return node;
+        });
+
         // Update project data
-        newProject.data.nodes = uniqueNodes as unknown as typeof newProject.data.nodes;
+        newProject.data.nodes = finalNodes as unknown as typeof newProject.data.nodes;
         newProject.data.edges = uniqueEdges as unknown as typeof newProject.data.edges;
 
         // Save updated project data
