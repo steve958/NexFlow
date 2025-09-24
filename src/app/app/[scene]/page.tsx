@@ -3,12 +3,14 @@ import ClientOnly from "@/components/ClientOnly";
 import AuthGate from "@/components/AuthGate";
 
 interface ScenePageProps {
-  params: {
+  params: Promise<{
     scene: string;
-  };
+  }>;
 }
 
-export default function ScenePage({ params }: ScenePageProps) {
+export default async function ScenePage({ params }: ScenePageProps) {
+  const { scene } = await params;
+
   return (
     <ClientOnly fallback={
       <div className="h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
@@ -20,7 +22,7 @@ export default function ScenePage({ params }: ScenePageProps) {
       </div>
     }>
       <AuthGate>
-        <ModernDiagramCanvas projectId={params.scene} />
+        <ModernDiagramCanvas projectId={scene} />
       </AuthGate>
     </ClientOnly>
   );

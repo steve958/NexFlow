@@ -19,6 +19,7 @@ interface Node {
   width: number;
   height: number;
   label: string;
+  description?: string;
   type: 'service' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
   color: string;
   borderColor: string;
@@ -1343,7 +1344,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       style: 'solid',
       animated: false,
       curvature: 0.3,
-      arrowSize: 12,
+      arrowSize: 24,
       isVisible: true
     };
 
@@ -1360,6 +1361,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       width: 160,
       height: 80,
       label: template.label,
+      description: '',
       type: template.type,
       color: template.color,
       borderColor: template.borderColor,
@@ -1664,18 +1666,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
     // Selection highlight with enhanced visuals
     if (isSelected) {
-      const padding = 6;
+      const padding = 8;
 
-      // Outer glow effect
-      ctx.shadowColor = '#3b82f6';
-      ctx.shadowBlur = 15;
+      // Outer glow effect - lighter and more subtle
+      ctx.shadowColor = 'rgba(59, 130, 246, 0.4)';
+      ctx.shadowBlur = 20;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
-      // Selection border
+      // Primary selection border - solid, vibrant
       ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([8, 4]);
+      ctx.lineWidth = 3 / viewport.zoom;
+      ctx.setLineDash([]); // Solid line instead of dashed
 
       if (shape === 'circle') {
         const radius = Math.max(width, height) / 2 + padding;
@@ -1691,30 +1693,50 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         ctx.strokeRect(x - padding, y - padding, width + padding * 2, height + padding * 2);
       }
 
+      // Secondary border for depth - slightly lighter blue
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
+      ctx.lineWidth = 1 / viewport.zoom;
+      const innerPadding = padding - 2;
+
+      if (shape === 'circle') {
+        const radius = Math.max(width, height) / 2 + innerPadding;
+        ctx.beginPath();
+        ctx.arc(x + width / 2, y + height / 2, radius, 0, 2 * Math.PI);
+        ctx.stroke();
+      } else if (shape === 'rounded') {
+        const cornerRadius = 12 + innerPadding;
+        ctx.beginPath();
+        ctx.roundRect(x - innerPadding, y - innerPadding, width + innerPadding * 2, height + innerPadding * 2, cornerRadius);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(x - innerPadding, y - innerPadding, width + innerPadding * 2, height + innerPadding * 2);
+      }
+
       // Reset effects
-      ctx.setLineDash([]);
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
 
-      // Selection handles (corner indicators)
-      const handleSize = 8;
-      ctx.fillStyle = '#3b82f6';
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
+      // Selection handles (corner indicators) - only for non-circle shapes
+      if (shape !== 'circle') {
+        const handleSize = 10 / viewport.zoom;
+        ctx.fillStyle = '#3b82f6';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2 / viewport.zoom;
 
-      const handles = [
-        { x: x - padding, y: y - padding }, // top-left
-        { x: x + width + padding, y: y - padding }, // top-right
-        { x: x - padding, y: y + height + padding }, // bottom-left
-        { x: x + width + padding, y: y + height + padding } // bottom-right
-      ];
+        const handles = [
+          { x: x - padding, y: y - padding }, // top-left
+          { x: x + width + padding, y: y - padding }, // top-right
+          { x: x - padding, y: y + height + padding }, // bottom-left
+          { x: x + width + padding, y: y + height + padding } // bottom-right
+        ];
 
-      handles.forEach(handle => {
-        ctx.beginPath();
-        ctx.arc(handle.x, handle.y, handleSize / 2, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
-      });
+        handles.forEach(handle => {
+          ctx.beginPath();
+          ctx.arc(handle.x, handle.y, handleSize / 2, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+        });
+      }
     }
 
     // Main shape
@@ -2211,10 +2233,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     const cp2X = endX - controlOffset;
     const cp2Y = endY;
 
-    // Edge styling
-    ctx.strokeStyle = isSelected ? '#ef4444' : edge.color;
-    ctx.lineWidth = isSelected ? edge.width + 2 : edge.width;
-
     // Line style
     if (edge.style === 'dashed') {
       ctx.setLineDash([8, 4]);
@@ -2224,32 +2242,33 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       ctx.setLineDash([]);
     }
 
-    // Draw curved line
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
-    ctx.stroke();
+    // Draw tapered line (thick at source, thin at target)
+    const baseWidth = isSelected ? edge.width + 2 : edge.width;
+    const segments = 20; // Number of segments for smooth taper
+
+    for (let i = 0; i < segments; i++) {
+      const t1 = i / segments;
+      const t2 = (i + 1) / segments;
+
+      // Calculate points along the bezier curve
+      const x1 = Math.pow(1 - t1, 3) * startX + 3 * Math.pow(1 - t1, 2) * t1 * cp1X + 3 * (1 - t1) * Math.pow(t1, 2) * cp2X + Math.pow(t1, 3) * endX;
+      const y1 = Math.pow(1 - t1, 3) * startY + 3 * Math.pow(1 - t1, 2) * t1 * cp1Y + 3 * (1 - t1) * Math.pow(t1, 2) * cp2Y + Math.pow(t1, 3) * endY;
+      const x2 = Math.pow(1 - t2, 3) * startX + 3 * Math.pow(1 - t2, 2) * t2 * cp1X + 3 * (1 - t2) * Math.pow(t2, 2) * cp2X + Math.pow(t2, 3) * endX;
+      const y2 = Math.pow(1 - t2, 3) * startY + 3 * Math.pow(1 - t2, 2) * t2 * cp1Y + 3 * (1 - t2) * Math.pow(t2, 2) * cp2Y + Math.pow(t2, 3) * endY;
+
+      // Taper from baseWidth to baseWidth * 0.3
+      const width = baseWidth * (1 - t1 * 0.7);
+
+      ctx.strokeStyle = isSelected ? '#ef4444' : edge.color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
 
     // Reset line dash
     ctx.setLineDash([]);
-
-    // Arrow
-    const angle = Math.atan2(endY - cp2Y, endX - cp2X);
-    const arrowLength = edge.arrowSize;
-
-    ctx.fillStyle = isSelected ? '#ef4444' : edge.color;
-    ctx.beginPath();
-    ctx.moveTo(endX, endY);
-    ctx.lineTo(
-      endX - arrowLength * Math.cos(angle - Math.PI / 6),
-      endY - arrowLength * Math.sin(angle - Math.PI / 6)
-    );
-    ctx.lineTo(
-      endX - arrowLength * Math.cos(angle + Math.PI / 6),
-      endY - arrowLength * Math.sin(angle + Math.PI / 6)
-    );
-    ctx.closePath();
-    ctx.fill();
 
     // Edge label
     const midX = (startX + cp1X + cp2X + endX) / 4;
@@ -2524,11 +2543,55 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     selectedNodes.forEach(nodeId => {
       const node = nodes.find(n => n.id === nodeId);
       if (node && node.isVisible && isInViewport(node.x, node.y, node.width, node.height)) {
+        const padding = 8;
+
+        // Outer glow effect
+        ctx.shadowColor = 'rgba(59, 130, 246, 0.4)';
+        ctx.shadowBlur = 20;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+
+        // Primary selection border - solid
         ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2 / viewport.zoom;
-        ctx.setLineDash([5 / viewport.zoom, 5 / viewport.zoom]);
-        ctx.strokeRect(node.x - 2, node.y - 2, node.width + 4, node.height + 4);
-        ctx.setLineDash([]);
+        ctx.lineWidth = 3 / viewport.zoom;
+        ctx.setLineDash([]); // Solid line
+
+        if (node.shape === 'circle') {
+          const radius = Math.max(node.width, node.height) / 2 + padding;
+          ctx.beginPath();
+          ctx.arc(node.x + node.width / 2, node.y + node.height / 2, radius, 0, 2 * Math.PI);
+          ctx.stroke();
+        } else if (node.shape === 'rounded') {
+          const cornerRadius = 12 + padding;
+          ctx.beginPath();
+          ctx.roundRect(node.x - padding, node.y - padding, node.width + padding * 2, node.height + padding * 2, cornerRadius);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(node.x - padding, node.y - padding, node.width + padding * 2, node.height + padding * 2);
+        }
+
+        // Secondary border for depth
+        ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
+        ctx.lineWidth = 1 / viewport.zoom;
+        const innerPadding = padding - 2;
+
+        if (node.shape === 'circle') {
+          const radius = Math.max(node.width, node.height) / 2 + innerPadding;
+          ctx.beginPath();
+          ctx.arc(node.x + node.width / 2, node.y + node.height / 2, radius, 0, 2 * Math.PI);
+          ctx.stroke();
+        } else if (node.shape === 'rounded') {
+          const cornerRadius = 12 + innerPadding;
+          ctx.beginPath();
+          ctx.roundRect(node.x - innerPadding, node.y - innerPadding, node.width + innerPadding * 2, node.height + innerPadding * 2, cornerRadius);
+          ctx.stroke();
+        } else {
+          ctx.strokeRect(node.x - innerPadding, node.y - innerPadding, node.width + innerPadding * 2, node.height + innerPadding * 2);
+        }
+
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
       }
     });
 
@@ -3365,6 +3428,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       />
                     </div>
 
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={node.description || ''}
+                        onChange={(e) => setNodes(prev => prev.map(n =>
+                          n.id === selectedNode ? { ...n, description: e.target.value } : n
+                        ))}
+                        placeholder="Add a description for this node..."
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none"
+                      />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">Width</label>
@@ -3588,11 +3664,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Arrow</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Arrow Size</label>
                         <input
                           type="range"
-                          min="6"
-                          max="20"
+                          min="10"
+                          max="50"
                           value={edge.arrowSize}
                           onChange={(e) => setEdges(prev => prev.map(ed =>
                             ed.id === selectedEdge ? { ...ed, arrowSize: Number(e.target.value) } : ed

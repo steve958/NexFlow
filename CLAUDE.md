@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/app/page.tsx`: Landing page with project dashboard and demo scene link
 - `src/app/app/[scene]/page.tsx`: Dynamic scene editor with authentication gate
 - `src/components/`:
-  - `ModernDiagramCanvas.tsx`: Main canvas-based diagram editor (3800+ lines)
+  - `ModernDiagramCanvas.tsx`: Main canvas-based diagram editor (5450+ lines)
   - `AuthGate.tsx`: Firebase Google authentication wrapper with SSR safety
   - `ClientOnly.tsx`: Client-side rendering wrapper component
   - `ThemeProvider.tsx` & `ThemeToggle.tsx`: Dark/light theme management
@@ -169,10 +169,10 @@ The app requires these environment variables for Firebase:
 ## Code Patterns & Conventions
 
 ### Component Architecture
-- **Client-Side Rendering**: All interactive components use `"use client"` directive (21 files)
+- **Client-Side Rendering**: All interactive components use `"use client"` directive (23 files)
 - **SSR Safety**: `ClientOnly` wrapper component prevents hydration mismatches
 - **Authentication Gate**: `AuthGate` component wraps Firebase auth with proper SSR handling
-- **Performance Optimization**: Heavy use of `useCallback`, `useMemo`, `useRef` (49 occurrences across components)
+- **Performance Optimization**: Heavy use of `useCallback`, `useMemo`, `useRef` (12+ files)
 
 ### Hook Patterns
 - **Custom Hooks**: Extensive use of custom hooks for state management and side effects
@@ -181,7 +181,7 @@ The app requires these environment variables for Firebase:
 - **Cleanup Patterns**: Proper cleanup in `useEffect` returns and animation disposal
 
 ### TypeScript Patterns
-- **Strong Typing**: 30+ interfaces defined across the codebase
+- **Strong Typing**: 56+ interfaces defined across the codebase
 - **Union Types**: Extensive use for node types, shapes, animation configs
 - **Type Safety**: Strict TypeScript configuration with ES2022 target
 - **Interface Consistency**: Well-defined interfaces for complex objects (Node, Edge, Packet, etc.)
@@ -228,7 +228,7 @@ presence/{sceneId}/{userId}: {
 - **GSAP Integration**: Professional animation library for smooth motion
 - **Multiple Approaches**: Simple RequestAnimationFrame vs complex GSAP timelines
 - **Packet Animations**: Configurable particles flowing along edge paths
-- **Performance Monitoring**: Extensive console logging for debugging (71 log statements)
+- **Performance Monitoring**: Extensive console logging for debugging (83 log statements)
 
 ### Animation Types
 1. **Edge Animations**: Packets flowing along connection paths with bezier curves
