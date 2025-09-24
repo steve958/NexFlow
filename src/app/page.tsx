@@ -140,8 +140,8 @@ export default function Home() {
         <main className="relative z-10 max-w-7xl mx-auto px-6 py-8">
           {/* Welcome Section */}
           <div className="mb-8">
-            <h2 className="text-4xl font-bold text-white mb-2">Welcome back!</h2>
-            <p className="text-white/60 text-lg">Create, collaborate, and visualize your system architecture.</p>
+            <h2 className="text-4xl font-bold text-white drop-shadow-lg mb-2">Welcome back!</h2>
+            <p className="text-white/90 text-lg drop-shadow-md">Create, collaborate, and visualize your system architecture.</p>
           </div>
 
           {/* Quick Actions */}
@@ -153,11 +153,11 @@ export default function Home() {
               <div className="flex items-center gap-3 mb-3">
                 <Star className="w-8 h-8 group-hover:rotate-12 transition-transform" />
                 <div>
-                  <h3 className="text-lg font-semibold">Try Demo</h3>
-                  <p className="text-teal-100 text-sm">Interactive playground</p>
+                  <h3 className="text-lg font-semibold text-white">Try Demo</h3>
+                  <p className="text-teal-50 text-sm">Interactive playground</p>
                 </div>
               </div>
-              <p className="text-white/80 text-sm">
+              <p className="text-white text-sm">
                 Explore NexFlow features with our interactive demo scene
               </p>
             </Link>
@@ -173,7 +173,7 @@ export default function Home() {
                   <p className="text-white/50 text-sm">Start from scratch</p>
                 </div>
               </div>
-              <p className="text-white/60 text-sm group-hover:text-white/80 transition-colors">
+              <p className="text-white/80 text-sm group-hover:text-white transition-colors">
                 Create a new architecture diagram
               </p>
             </button>
@@ -189,7 +189,7 @@ export default function Home() {
                   <p className="text-white/50 text-sm">Quick start</p>
                 </div>
               </div>
-              <p className="text-white/60 text-sm group-hover:text-white/80 transition-colors">
+              <p className="text-white/80 text-sm group-hover:text-white transition-colors">
                 Browse pre-built architecture patterns
               </p>
             </button>
@@ -200,7 +200,7 @@ export default function Home() {
             {/* Projects Header */}
             <div className="p-6 border-b border-white/20">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-white">Recent Projects</h3>
+                <h3 className="text-xl font-bold text-white drop-shadow-md">Recent Projects</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setViewMode('grid')}
@@ -230,10 +230,10 @@ export default function Home() {
                     placeholder="Search projects..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-white placeholder-white/40"
+                    className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-white placeholder-white/60"
                   />
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-lg hover:bg-white/15 transition-colors text-white/80">
+                <button className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-lg hover:bg-white/15 transition-colors text-white">
                   <Filter className="w-4 h-4" />
                   Filter
                 </button>
@@ -245,30 +245,37 @@ export default function Home() {
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredProjects.map((project) => (
-                    <div key={project.id} className="group bg-white/5 border border-white/20 rounded-xl overflow-hidden hover:border-teal-400/50 hover:bg-white/10 transition-all relative backdrop-blur-sm">
+                    <div key={project.id} className="group bg-gradient-to-br from-white/5 to-white/10 border border-white/20 rounded-2xl overflow-hidden hover:border-teal-400/60 hover:shadow-2xl hover:shadow-teal-500/20 transition-all duration-300 relative backdrop-blur-md hover:-translate-y-1">
                       <Link
                         href={project.isDemo ? "/app/demo" : `/app/${project.id}`}
                         className="block"
                       >
-                        <div className="aspect-video bg-gradient-to-br from-teal-500/20 to-blue-500/20 flex items-center justify-center relative overflow-hidden group/preview">
+                        <div className="aspect-video bg-gradient-to-br from-teal-600/20 via-blue-600/20 to-indigo-600/20 flex items-center justify-center relative overflow-hidden group/preview">
+                          {/* Animated gradient background */}
+                          <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-blue-500/10 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-500"></div>
+
                           {/* Grid background pattern */}
-                          <div className="absolute inset-0 opacity-20" style={{
-                            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                            backgroundSize: '20px 20px'
+                          <div className="absolute inset-0 opacity-30 group-hover/preview:opacity-40 transition-opacity duration-300" style={{
+                            backgroundImage: 'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)',
+                            backgroundSize: '24px 24px'
                           }}></div>
 
                           {/* Mini canvas preview */}
                           {project.data?.nodes && project.data.nodes.length > 0 ? (
-                            <svg className="w-full h-full relative z-10 group-hover/preview:scale-105 transition-transform duration-500" viewBox="0 0 400 225" preserveAspectRatio="xMidYMid meet">
-                              {/* Glow effect definitions */}
+                            <svg className="w-full h-full relative z-10 transition-all duration-700 ease-out" viewBox="0 0 400 225" preserveAspectRatio="xMidYMid meet">
+                              {/* Enhanced glow effect definitions */}
                               <defs>
                                 <filter id={`glow-${project.id}`} x="-50%" y="-50%" width="200%" height="200%">
-                                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                                  <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
                                   <feMerge>
                                     <feMergeNode in="coloredBlur"/>
                                     <feMergeNode in="SourceGraphic"/>
                                   </feMerge>
                                 </filter>
+                                <linearGradient id={`nodeGrad-${project.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                                  <stop offset="0%" stopColor="rgba(255,255,255,0.3)" />
+                                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                                </linearGradient>
                               </defs>
 
                               {/* Draw edges first (behind nodes) */}
@@ -293,24 +300,25 @@ export default function Home() {
 
                                 return (
                                   <g key={`edge-${idx}`}>
-                                    {/* Edge shadow */}
+                                    {/* Edge glow shadow */}
                                     <path
                                       d={`M ${x1} ${y1} Q ${midX + offsetX} ${midY + offsetY} ${x2} ${y2}`}
-                                      stroke="rgba(0,0,0,0.3)"
-                                      strokeWidth="2"
+                                      stroke="rgba(20, 184, 166, 0.3)"
+                                      strokeWidth="4"
                                       fill="none"
-                                      transform="translate(1, 1)"
+                                      className="blur-sm"
                                     />
                                     {/* Main edge */}
                                     <path
                                       d={`M ${x1} ${y1} Q ${midX + offsetX} ${midY + offsetY} ${x2} ${y2}`}
-                                      stroke="rgba(100, 200, 255, 0.5)"
-                                      strokeWidth="2"
+                                      stroke="rgba(45, 212, 191, 0.7)"
+                                      strokeWidth="2.5"
                                       fill="none"
-                                      className="group-hover/preview:stroke-teal-300 transition-colors duration-300"
+                                      strokeDasharray="5,3"
+                                      className="group-hover/preview:stroke-teal-300 group-hover/preview:stroke-[3] transition-all duration-500"
                                     />
                                     {/* Arrow head */}
-                                    <circle cx={x2} cy={y2} r="2" fill="rgba(100, 200, 255, 0.6)" />
+                                    <circle cx={x2} cy={y2} r="3" fill="rgba(45, 212, 191, 0.8)" className="group-hover/preview:r-[4] transition-all" />
                                   </g>
                                 );
                               })}
@@ -325,14 +333,16 @@ export default function Home() {
 
                                 return (
                                   <g key={idx} className="group/node">
-                                    {/* Node shadow */}
+                                    {/* Node outer glow */}
                                     <rect
-                                      x={x + 2}
-                                      y={y + 2}
-                                      width={w}
-                                      height={h}
-                                      rx="6"
-                                      fill="rgba(0,0,0,0.3)"
+                                      x={x - 2}
+                                      y={y - 2}
+                                      width={w + 4}
+                                      height={h + 4}
+                                      rx="8"
+                                      fill={node.color || '#3b82f6'}
+                                      fillOpacity="0.2"
+                                      className="blur-sm group-hover/preview:fill-opacity-40 transition-all duration-500"
                                     />
                                     {/* Node background */}
                                     <rect
@@ -342,88 +352,102 @@ export default function Home() {
                                       height={h}
                                       rx="6"
                                       fill={node.color || '#3b82f6'}
-                                      fillOpacity="0.8"
+                                      fillOpacity="0.85"
                                       stroke={node.borderColor || '#1e40af'}
-                                      strokeWidth="2"
+                                      strokeWidth="2.5"
                                       filter={`url(#glow-${project.id})`}
-                                      className="group-hover/preview:fill-opacity-100 transition-all duration-300"
+                                      className="group-hover/preview:fill-opacity-100 group-hover/preview:stroke-[3] transition-all duration-500"
                                     />
-                                    {/* Node highlight */}
+                                    {/* Node gradient overlay */}
                                     <rect
                                       x={x}
                                       y={y}
                                       width={w}
-                                      height={h * 0.3}
+                                      height={h}
                                       rx="6"
-                                      fill="rgba(255,255,255,0.2)"
+                                      fill={`url(#nodeGrad-${project.id})`}
+                                    />
+                                    {/* Node shine effect */}
+                                    <rect
+                                      x={x + 2}
+                                      y={y + 2}
+                                      width={w - 4}
+                                      height={h * 0.35}
+                                      rx="4"
+                                      fill="rgba(255,255,255,0.25)"
+                                      className="group-hover/preview:fill-white/35 transition-all duration-300"
                                     />
                                   </g>
                                 );
                               })}
                             </svg>
                           ) : (
-                            <div className="relative z-10">
-                              <Folder className="w-16 h-16 text-white/30 group-hover:text-teal-300 group-hover:scale-110 transition-all duration-300" />
+                            <div className="relative z-10 flex flex-col items-center gap-3">
+                              <div className="relative">
+                                <div className="absolute inset-0 bg-teal-400/20 blur-xl group-hover/preview:bg-teal-400/40 transition-all duration-500"></div>
+                                <Folder className="w-20 h-20 text-white/40 group-hover/preview:text-teal-300 transition-all duration-500 relative" />
+                              </div>
+                              <span className="text-xs text-white/50 group-hover/preview:text-white/70 transition-colors">Empty Project</span>
                             </div>
                           )}
 
                           {/* Stats overlay */}
                           {project.data?.nodes && project.data.nodes.length > 0 && (
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 pt-8">
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-10">
                               <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-3 text-white/80">
-                                  <div className="flex items-center gap-1">
-                                    <Layers className="w-3 h-3" />
-                                    <span>{project.data.nodes.length} nodes</span>
+                                <div className="flex items-center gap-4 text-white">
+                                  <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                                    <Layers className="w-3.5 h-3.5 text-teal-300" />
+                                    <span className="font-medium">{project.data.nodes.length}</span>
                                   </div>
                                   {project.data.edges && project.data.edges.length > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                                      <svg className="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                       </svg>
-                                      <span>{project.data.edges.length} edges</span>
+                                      <span className="font-medium">{project.data.edges.length}</span>
                                     </div>
                                   )}
-                                </div>
-                                <div className="px-2 py-1 bg-teal-500/30 text-teal-300 rounded-full text-xs font-medium">
-                                  Preview
                                 </div>
                               </div>
                             </div>
                           )}
 
                           {/* Hover overlay effect */}
-                          <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/0 to-blue-500/0 group-hover/preview:from-teal-500/10 group-hover/preview:to-blue-500/10 transition-all duration-500"></div>
+                          <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/0 via-blue-500/0 to-indigo-500/0 group-hover/preview:from-teal-500/20 group-hover/preview:via-blue-500/20 group-hover/preview:to-indigo-500/20 transition-all duration-700"></div>
+
+                          {/* Corner accent */}
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-teal-400/0 group-hover/preview:from-teal-400/30 transition-all duration-500 blur-2xl"></div>
                         </div>
-                        <div className="p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-white group-hover:text-teal-300 transition-colors">
+                        <div className="p-5 bg-gradient-to-b from-transparent to-black/10">
+                          <div className="flex items-start justify-between mb-3">
+                            <h4 className="text-lg font-bold text-white drop-shadow-md group-hover:text-teal-200 transition-colors duration-300 tracking-tight">
                               {project.name}
                             </h4>
                             {project.isDemo && (
-                              <span className="px-2 py-1 bg-teal-500/30 text-teal-300 text-xs rounded-full">Demo</span>
+                              <span className="px-3 py-1 bg-gradient-to-r from-teal-500/40 to-blue-500/40 text-teal-200 text-xs font-semibold rounded-full border border-teal-400/30 backdrop-blur-sm">Demo</span>
                             )}
                           </div>
-                          <p className="text-sm text-white/60 mb-3 line-clamp-2">{project.description}</p>
-                          <div className="flex items-center justify-between text-xs text-white/50">
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatLastModified(project.lastModified)}
+                          <p className="text-sm text-white/90 mb-4 line-clamp-2 leading-relaxed">{project.description}</p>
+                          <div className="flex items-center justify-between text-xs text-white/80">
+                            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md">
+                              <Clock className="w-3.5 h-3.5 text-teal-300" />
+                              <span className="font-medium">{formatLastModified(project.lastModified)}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Folder className="w-3 h-3" />
-                              {project.category}
+                            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md">
+                              <Folder className="w-3.5 h-3.5 text-blue-300" />
+                              <span className="font-medium">{project.category}</span>
                             </div>
                           </div>
                           {project.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
+                            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-white/10">
                               {project.tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="px-2 py-1 bg-white/10 text-white/70 text-xs rounded border border-white/20">
-                                  {tag}
+                                <span key={tag} className="px-2.5 py-1 bg-gradient-to-r from-white/15 to-white/10 text-white text-xs rounded-md border border-white/30 hover:border-teal-400/40 transition-colors font-medium">
+                                  #{tag}
                                 </span>
                               ))}
                               {project.tags.length > 3 && (
-                                <span className="px-2 py-1 bg-white/10 text-white/70 text-xs rounded border border-white/20">
+                                <span className="px-2.5 py-1 bg-gradient-to-r from-teal-500/20 to-blue-500/20 text-teal-300 text-xs rounded-md border border-teal-400/30 font-semibold">
                                   +{project.tags.length - 3}
                                 </span>
                               )}
@@ -434,27 +458,27 @@ export default function Home() {
 
                       {/* Project Actions */}
                       {!project.isDemo && (
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="flex gap-1">
+                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100">
+                          <div className="flex gap-1.5">
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
                                 handleDuplicateProject(project.id);
                               }}
-                              className="p-2 bg-white/90 hover:bg-blue-50 rounded-lg shadow-sm border border-gray-200 hover:border-blue-300 transition-colors"
+                              className="p-2.5 bg-white/95 hover:bg-blue-50 rounded-lg shadow-lg border border-white/40 hover:border-blue-400 transition-all backdrop-blur-sm hover:scale-110"
                               title="Duplicate project"
                             >
-                              <Copy className="w-3 h-3 text-gray-600 hover:text-blue-600" />
+                              <Copy className="w-3.5 h-3.5 text-gray-700 hover:text-blue-600 transition-colors" />
                             </button>
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
                                 handleDeleteProject(project.id, project.name);
                               }}
-                              className="p-2 bg-white/90 hover:bg-red-50 rounded-lg shadow-sm border border-gray-200 hover:border-red-300 transition-colors"
+                              className="p-2.5 bg-white/95 hover:bg-red-50 rounded-lg shadow-lg border border-white/40 hover:border-red-400 transition-all backdrop-blur-sm hover:scale-110"
                               title="Delete project"
                             >
-                              <Trash2 className="w-3 h-3 text-gray-600 hover:text-red-600" />
+                              <Trash2 className="w-3.5 h-3.5 text-gray-700 hover:text-red-600 transition-colors" />
                             </button>
                           </div>
                         </div>
@@ -501,12 +525,12 @@ export default function Home() {
 
               {filteredProjects.length === 0 && (
                 <div className="text-center py-12">
-                  <Folder className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">No projects found</h4>
-                  <p className="text-gray-500 mb-4">
+                  <Folder className="w-12 h-12 text-white/40 mx-auto mb-3" />
+                  <h4 className="text-lg font-medium text-white drop-shadow-md mb-2">No projects found</h4>
+                  <p className="text-white/80 mb-4">
                     {searchQuery ? 'Try adjusting your search terms' : 'Create your first project to get started'}
                   </p>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <button className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium">
                     New Project
                   </button>
                 </div>
@@ -523,7 +547,7 @@ export default function Home() {
                 </div>
                 <span className="text-2xl font-bold text-white">{projectStats.total}</span>
               </div>
-              <p className="text-sm text-white/60">Total Projects</p>
+              <p className="text-sm text-white/90 font-medium">Total Projects</p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
@@ -533,7 +557,7 @@ export default function Home() {
                 </div>
                 <span className="text-2xl font-bold text-white">{projectStats.categories}</span>
               </div>
-              <p className="text-sm text-white/60">Categories</p>
+              <p className="text-sm text-white/90 font-medium">Categories</p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
@@ -543,7 +567,7 @@ export default function Home() {
                 </div>
                 <span className="text-2xl font-bold text-white">{projectStats.tags}</span>
               </div>
-              <p className="text-sm text-white/60">Unique Tags</p>
+              <p className="text-sm text-white/90 font-medium">Unique Tags</p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
@@ -555,7 +579,7 @@ export default function Home() {
                   {projectStats.lastModified ? formatLastModified(projectStats.lastModified.toISOString()) : 'None'}
                 </span>
               </div>
-              <p className="text-sm text-white/60">Last Activity</p>
+              <p className="text-sm text-white/90 font-medium">Last Activity</p>
             </div>
           </div>
         </main>

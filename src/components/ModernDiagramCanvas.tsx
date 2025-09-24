@@ -1,12 +1,11 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight } from 'lucide-react';
 import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, setDoc, getDocs, collection, deleteDoc, query, where, orderBy } from 'firebase/firestore';
-import { useTheme } from './ThemeProvider';
-import { ThemeToggle } from './ThemeToggle';
 import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
@@ -368,7 +367,7 @@ interface ModernDiagramCanvasProps {
 
 const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { isDark } = useTheme();
+  const isDark = true; // Always use dark theme
 
   // History management for undo/redo
   const [history, setHistory] = useState<DiagramState[]>([]);
@@ -494,6 +493,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showCustomNodeBuilder, setShowCustomNodeBuilder] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const [exportMenuPosition, setExportMenuPosition] = useState({ top: 0, right: 0 });
+  const [profileMenuPosition, setProfileMenuPosition] = useState({ top: 0, right: 0 });
 
   // Save/Load state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -635,7 +639,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     });
 
     setHistoryIndex(prev => Math.min(prev + 1, 49));
-  }, [nodes, edges, animationConfigs, historyIndex]);
+  }, [nodes, edges, groups, animationConfigs, historyIndex]);
 
   // Undo functionality
   const undo = useCallback(() => {
@@ -1567,13 +1571,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [isClient]);
 
-  // Save to history when nodes or edges change
+  // Save to history when nodes, edges, or groups change
   useEffect(() => {
     if (history.length > 0) {
       const timeoutId = setTimeout(saveToHistory, 300); // Debounce
       return () => clearTimeout(timeoutId);
     }
-  }, [nodes, edges, saveToHistory]);
+  }, [nodes, edges, groups, saveToHistory]);
 
   const animationFrameRef = useRef<number>(0);
   const frameCountRef = useRef(0);
@@ -2298,6 +2302,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     if (!group.isVisible) return;
 
     const { x, y, width, height, label, color, borderColor, backgroundColor } = group;
+    console.log('Drawing group with backgroundColor:', backgroundColor);
 
     // Group background
     ctx.fillStyle = backgroundColor;
@@ -2835,7 +2840,63 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       }
     }
 
-    // Check for group selection first (groups are behind nodes)
+    // Check for edge selection first (so edges can be selected inside groups)
+    for (const edge of edges) {
+      if (!edge.isVisible) continue;
+
+      const points = getConnectionPoints(edge);
+      if (!points) continue;
+
+      const { startX, startY, endX, endY } = points;
+      const midX = (startX + endX) / 2;
+      const midY = (startY + endY) / 2;
+
+      const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
+      if (distance < 40 / viewport.zoom) {
+        setSelectedEdge(edge.id);
+        setSelectedNode(null);
+        setSelectedGroup(null);
+        setSelectedNodes(new Set());
+        return;
+      }
+    }
+
+    // Check for node selection
+    for (const node of nodes) {
+      if (node.isVisible &&
+          worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
+          worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
+
+        // Cancel connection if clicking on node body
+        if (isConnecting) {
+          setIsConnecting(false);
+          setConnectionStart(null);
+          setConnectionPreview(null);
+        }
+
+        if (event.ctrlKey || event.metaKey) {
+          // Multi-select with Ctrl
+          const newSelected = new Set(selectedNodes);
+          if (selectedNodes.has(node.id)) {
+            newSelected.delete(node.id);
+          } else {
+            newSelected.add(node.id);
+          }
+          setSelectedNodes(newSelected);
+        } else {
+          setSelectedNode(node.id);
+          setSelectedEdge(null);
+          setSelectedGroup(null);
+          setSelectedNodes(new Set([node.id]));
+        }
+
+        setDraggedNode(node.id);
+        setDragOffset({ x: worldPos.x - node.x, y: worldPos.y - node.y });
+        return;
+      }
+    }
+
+    // Check for group selection last (groups are behind nodes and edges)
     for (const group of groups.slice().reverse()) { // Reverse to check top groups first
       if (group.isVisible &&
           worldPos.x >= group.x && worldPos.x <= group.x + group.width &&
@@ -2876,62 +2937,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           setDragOffset({ x: worldPos.x - group.x, y: worldPos.y - group.y });
           return;
         }
-      }
-    }
-
-    // Check for node selection
-    for (const node of nodes) {
-      if (node.isVisible &&
-          worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
-          worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
-
-        // Cancel connection if clicking on node body
-        if (isConnecting) {
-          setIsConnecting(false);
-          setConnectionStart(null);
-          setConnectionPreview(null);
-        }
-
-        if (event.ctrlKey || event.metaKey) {
-          // Multi-select with Ctrl
-          const newSelected = new Set(selectedNodes);
-          if (selectedNodes.has(node.id)) {
-            newSelected.delete(node.id);
-          } else {
-            newSelected.add(node.id);
-          }
-          setSelectedNodes(newSelected);
-        } else {
-          setSelectedNode(node.id);
-          setSelectedEdge(null);
-          setSelectedGroup(null);
-          setSelectedNodes(new Set([node.id]));
-        }
-
-        setDraggedNode(node.id);
-        setDragOffset({ x: worldPos.x - node.x, y: worldPos.y - node.y });
-        return;
-      }
-    }
-
-    // Check for edge selection
-    for (const edge of edges) {
-      if (!edge.isVisible) continue;
-
-      const points = getConnectionPoints(edge);
-      if (!points) continue;
-
-      const { startX, startY, endX, endY } = points;
-      const midX = (startX + endX) / 2;
-      const midY = (startY + endY) / 2;
-
-      const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
-      if (distance < 40 / viewport.zoom) {
-        setSelectedEdge(edge.id);
-        setSelectedNode(null);
-        setSelectedGroup(null);
-        setSelectedNodes(new Set());
-        return;
       }
     }
 
@@ -3088,26 +3093,27 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }
 
   return (
-    <div className="h-screen w-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
+    <div className="h-screen w-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 flex overflow-hidden">
       {/* Left Sidebar */}
-      <div className="w-[480px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
+      <div className="w-[480px] bg-gradient-to-b from-gray-900/95 to-gray-900/98 backdrop-blur-xl border-r border-white/10 flex flex-col min-h-0">
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-900 z-20">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-16 h-16">
+        <div className="p-4 border-b border-white/10 flex-shrink-0 bg-gradient-to-r from-teal-900/20 to-blue-900/20 backdrop-blur-sm z-20">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-14 h-14 relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-blue-500 rounded-xl blur-md opacity-50"></div>
               <NextImage
                 src="/canvas-logo.png"
                 alt="NexFlow Logo"
-                width={64}
-                height={64}
-                className="w-full h-full object-contain rounded-xl"
+                width={56}
+                height={56}
+                className="w-full h-full object-contain rounded-xl relative drop-shadow-2xl"
               />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">NexFlow</h2>
+            <h2 className="text-xl font-bold text-white drop-shadow-lg">NexFlow</h2>
           </div>
 
           {/* Panel Tabs */}
-          <div className="grid grid-cols-3 gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 p-2">
+          <div className="grid grid-cols-3 gap-2 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 p-2">
             {[
               { id: 'templates', label: 'Items', icon: Square },
               { id: 'groups', label: 'Groups', icon: Layers },
@@ -3118,11 +3124,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => setActivePanel(id as 'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls')}
-                className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                onClick={() => {
+                  setActivePanel(id as 'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls');
+                  // Clear group selection when switching panels
+                  if (selectedGroup && id !== 'groups') {
+                    setSelectedGroup(null);
+                  }
+                }}
+                className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   activePanel === id
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-gradient-to-br from-teal-500 to-blue-600 text-white shadow-lg shadow-teal-500/30'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -3133,20 +3145,20 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         </div>
 
         {/* Panel Content */}
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 min-h-0 custom-scrollbar">
           {activePanel === 'templates' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">Node Templates</h3>
+                <h3 className="text-sm font-bold text-white drop-shadow-md">Node Templates</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowCustomNodeBuilder(true)}
-                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                    className="p-1.5 text-teal-300 hover:bg-teal-500/20 rounded-lg transition-all hover:scale-110"
                     title="Create Custom Node"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-white/70 font-medium">
                     {allNodeTemplates.filter((template) =>
                       template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -3163,7 +3175,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   placeholder="Search templates..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-3 py-2 pl-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 pl-8 text-sm bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                 />
                 <div className="absolute left-2.5 top-2.5 text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3182,7 +3194,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 )}
               </div>
 
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-white/70">
                 Drag templates onto the canvas to create new nodes
               </p>
 
@@ -3200,7 +3212,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       key={template.type}
                       draggable
                       onDragStart={(e) => handleTemplateDragStart(template, e)}
-                      className="group p-3 border border-gray-200 rounded-lg cursor-grab active:cursor-grabbing hover:border-gray-300 hover:shadow-sm transition-all"
+                      className="group p-3 bg-white/5 border border-white/20 rounded-xl cursor-grab active:cursor-grabbing hover:border-teal-400/50 hover:bg-white/10 hover:shadow-lg hover:shadow-teal-500/20 transition-all duration-200 backdrop-blur-sm"
                       style={{ borderLeftColor: template.color, borderLeftWidth: '4px' }}
                     >
                       <div className="flex items-center gap-3">
@@ -3211,8 +3223,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           <Icon className="w-5 h-5" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 text-sm">{template.label}</div>
-                          <div className="text-xs text-gray-500 truncate">{template.description}</div>
+                          <div className="font-semibold text-white text-sm drop-shadow-sm">{template.label}</div>
+                          <div className="text-xs text-white/70 truncate">{template.description}</div>
                         </div>
                       </div>
                     </div>
@@ -3220,10 +3232,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 })}
               </div>
 
-              <div className="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="mt-6 p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 rounded-xl border border-teal-400/30 backdrop-blur-sm">
                 <div className="flex items-start gap-2">
-                  <div className="w-4 h-4 rounded-full bg-blue-500 flex-shrink-0 mt-0.5"></div>
-                  <div className="text-xs text-blue-700">
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex-shrink-0 mt-0.5 shadow-lg"></div>
+                  <div className="text-xs text-white/90">
                     <strong>Tip:</strong> Drag any template to the canvas to create a new node. You can customize colors, labels, and other properties in the Nodes panel.
                   </div>
                 </div>
@@ -3234,12 +3246,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'animations' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">Animation Controls</h3>
-                <div className="text-xs text-gray-500">{packets.length} active packets</div>
+                <h3 className="text-sm font-bold text-white drop-shadow-md">Animation Controls</h3>
+                <div className="text-xs text-white/70 font-medium">{packets.length} active packets</div>
               </div>
 
               {edges.length === 0 && (
-                <div className="text-center text-gray-500 py-6">
+                <div className="text-center text-white/70 py-6">
                   <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No connections available</p>
                   <p className="text-xs">Connect nodes to enable animations</p>
@@ -3254,16 +3266,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 return (
                   <div
                     key={edge.id}
-                    className={`p-3 rounded-lg border transition-colors ${
+                    className={`p-3 rounded-xl border transition-all backdrop-blur-sm ${
                       selectedEdge === edge.id
-                        ? 'border-blue-200 bg-blue-50'
-                        : 'border-gray-200 bg-white'
+                        ? 'border-teal-400/50 bg-teal-500/20'
+                        : 'border-white/20 bg-white/5'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <div className="font-medium text-sm text-gray-900">{edge.label}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="font-semibold text-sm text-white drop-shadow-sm">{edge.label}</div>
+                        <div className="text-xs text-white/70">
                           {getNode(edge.sourceId)?.label} → {getNode(edge.targetId)?.label}
                         </div>
                       </div>
@@ -3272,10 +3284,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ...prev,
                           [edge.id]: { ...prev[edge.id], enabled: !prev[edge.id].enabled }
                         }))}
-                        className={`p-2 rounded-md transition-colors ${
+                        className={`p-2 rounded-lg transition-all ${
                           config.enabled
-                            ? 'bg-green-100 text-green-600 hover:bg-green-200'
-                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                            ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                            : 'bg-white/10 text-white/60 hover:bg-white/20'
                         }`}
                       >
                         {config.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -3285,7 +3297,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     {config.enabled && (
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Speed</label>
+                          <label className="block text-xs font-semibold text-white/90 mb-1">Speed</label>
                           <input
                             type="range"
                             min="0.005"
@@ -3301,7 +3313,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         </div>
 
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Frequency</label>
+                          <label className="block text-xs font-semibold text-white/90 mb-1">Frequency</label>
                           <input
                             type="range"
                             min="20"
@@ -3318,7 +3330,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Size</label>
+                            <label className="block text-xs font-semibold text-white/90 mb-1">Size</label>
                             <input
                               type="range"
                               min="4"
@@ -3333,7 +3345,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           </div>
 
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                            <label className="block text-xs font-semibold text-white/90 mb-1">Color</label>
                             <input
                               type="color"
                               value={config.color}
@@ -3341,14 +3353,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                 ...prev,
                                 [edge.id]: { ...prev[edge.id], color: e.target.value }
                               }))}
-                              className="w-full h-8 border rounded"
+                              className="w-full h-8 border border-white/20 rounded-lg bg-white/5"
                             />
                           </div>
                         </div>
 
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
-                            <label className="text-xs font-medium text-gray-700">Shape:</label>
+                            <label className="text-xs font-semibold text-white/90">Shape:</label>
                             <div className="flex gap-1">
                               {[
                                 { shape: 'circle', icon: Circle },
@@ -3362,10 +3374,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                     ...prev,
                                     [edge.id]: { ...prev[edge.id], shape: shape as 'circle' | 'square' | 'diamond' | 'triangle' }
                                   }))}
-                                  className={`p-1 rounded transition-colors ${
+                                  className={`p-1 rounded-lg transition-all ${
                                     config.shape === shape
-                                      ? 'bg-blue-100 text-blue-600'
-                                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                      ? 'bg-teal-500/30 text-teal-300'
+                                      : 'bg-white/10 text-white/60 hover:bg-white/20'
                                   }`}
                                 >
                                   <Icon className="w-3 h-3" />
@@ -3374,7 +3386,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                             </div>
                           </div>
 
-                          <label className="flex items-center gap-2 text-xs">
+                          <label className="flex items-center gap-2 text-xs text-white/90 font-medium">
                             <input
                               type="checkbox"
                               checked={config.trail}
@@ -3382,7 +3394,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                 ...prev,
                                 [edge.id]: { ...prev[edge.id], trail: e.target.checked }
                               }))}
-                              className="rounded"
+                              className="rounded border-white/20"
                             />
                             Trail
                           </label>
@@ -3404,32 +3416,32 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 return (
                   <>
-                    <div className="flex items-center justify-between sticky top-0 bg-white pb-2 z-10">
-                      <h3 className="text-sm font-semibold text-gray-900">Node Properties</h3>
+                    <div className="flex items-center justify-between sticky top-0 bg-gradient-to-b from-gray-900 to-gray-900/80 backdrop-blur-sm pb-2 z-10">
+                      <h3 className="text-sm font-bold text-white drop-shadow-md">Node Properties</h3>
                       <button
                         onClick={() => setNodes(prev => prev.map(n =>
                           n.id === selectedNode ? { ...n, isVisible: !n.isVisible } : n
                         ))}
-                        className="p-2 rounded-md bg-gray-100 hover:bg-gray-200"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white"
                       >
                         {node.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                      <label className="block text-xs font-semibold text-white/90 mb-1">Label</label>
                       <input
                         type="text"
                         value={node.label}
                         onChange={(e) => setNodes(prev => prev.map(n =>
                           n.id === selectedNode ? { ...n, label: e.target.value } : n
                         ))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                      <label className="block text-xs font-semibold text-white/90 mb-1">Description</label>
                       <textarea
                         value={node.description || ''}
                         onChange={(e) => setNodes(prev => prev.map(n =>
@@ -3437,82 +3449,82 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         ))}
                         placeholder="Add a description for this node..."
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg text-sm resize-none focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Width</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Width</label>
                         <input
                           type="number"
                           value={node.width}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, width: Number(e.target.value) } : n
                           ))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Height</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Height</label>
                         <input
                           type="number"
                           value={node.height}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, height: Number(e.target.value) } : n
                           ))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Fill</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Fill</label>
                         <input
                           type="color"
                           value={node.color}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, color: e.target.value } : n
                           ))}
-                          className="w-full h-8 border rounded"
+                          className="w-full h-8 border border-white/20 rounded-lg bg-white/5"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Border</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Border</label>
                         <input
                           type="color"
                           value={node.borderColor}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, borderColor: e.target.value } : n
                           ))}
-                          className="w-full h-8 border rounded"
+                          className="w-full h-8 border border-white/20 rounded-lg bg-white/5"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Text</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Text</label>
                         <input
                           type="color"
                           value={node.textColor}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, textColor: e.target.value } : n
                           ))}
-                          className="w-full h-8 border rounded"
+                          className="w-full h-8 border border-white/20 rounded-lg bg-white/5"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Shape</label>
+                      <label className="block text-xs font-semibold text-white/90 mb-1">Shape</label>
                       <select
                         value={node.shape}
                         onChange={(e) => setNodes(prev => prev.map(n =>
                           n.id === selectedNode ? { ...n, shape: e.target.value as 'rectangle' | 'rounded' | 'circle' | 'diamond' } : n
                         ))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                       >
                         <option value="rectangle">Rectangle</option>
                         <option value="rounded">Rounded Rectangle</option>
@@ -3523,7 +3535,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Font Size</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Font Size</label>
                         <input
                           type="range"
                           min="10"
@@ -3578,51 +3590,51 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 return (
                   <>
-                    <div className="flex items-center justify-between sticky top-0 bg-white pb-2 z-10">
-                      <h3 className="text-sm font-semibold text-gray-900">Edge Properties</h3>
+                    <div className="flex items-center justify-between sticky top-0 bg-gradient-to-b from-gray-900 to-gray-900/80 backdrop-blur-sm pb-2 z-10">
+                      <h3 className="text-sm font-bold text-white drop-shadow-md">Edge Properties</h3>
                       <button
                         onClick={() => setEdges(prev => prev.map(e =>
                           e.id === selectedEdge ? { ...e, isVisible: !e.isVisible } : e
                         ))}
-                        className="p-2 rounded-md bg-gray-100 hover:bg-gray-200"
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white"
                       >
                         {edge.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                      <label className="block text-xs font-semibold text-white/90 mb-1">Label</label>
                       <input
                         type="text"
                         value={edge.label}
                         onChange={(e) => setEdges(prev => prev.map(ed =>
                           ed.id === selectedEdge ? { ...ed, label: e.target.value } : ed
                         ))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Color</label>
                         <input
                           type="color"
                           value={edge.color}
                           onChange={(e) => setEdges(prev => prev.map(ed =>
                             ed.id === selectedEdge ? { ...ed, color: e.target.value } : ed
                           ))}
-                          className="w-full h-8 border rounded"
+                          className="w-full h-8 border border-white/20 rounded-lg bg-white/5"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Style</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Style</label>
                         <select
                           value={edge.style}
                           onChange={(e) => setEdges(prev => prev.map(ed =>
                             ed.id === selectedEdge ? { ...ed, style: e.target.value as 'solid' | 'dashed' | 'dotted' } : ed
                           ))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                         >
                           <option value="solid">Solid</option>
                           <option value="dashed">Dashed</option>
@@ -3633,7 +3645,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Width</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Width</label>
                         <input
                           type="range"
                           min="1"
@@ -3644,11 +3656,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-gray-500">{edge.width}px</span>
+                        <span className="text-xs text-white/70 font-medium">{edge.width}px</span>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Curvature</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Curvature</label>
                         <input
                           type="range"
                           min="0"
@@ -3660,11 +3672,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-gray-500">{edge.curvature}</span>
+                        <span className="text-xs text-white/70 font-medium">{edge.curvature}</span>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Arrow Size</label>
+                        <label className="block text-xs font-semibold text-white/90 mb-1">Arrow Size</label>
                         <input
                           type="range"
                           min="10"
@@ -3675,7 +3687,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-gray-500">{edge.arrowSize}px</span>
+                        <span className="text-xs text-white/70 font-medium">{edge.arrowSize}px</span>
                       </div>
                     </div>
                   </>
@@ -3687,18 +3699,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'groups' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">Node Groups</h3>
-                <div className="text-xs text-gray-500">{groups.length} groups</div>
+                <h3 className="text-sm font-bold text-white drop-shadow-md">Node Groups</h3>
+                <div className="text-xs text-white/70 font-medium">{groups.length} groups</div>
               </div>
 
               {selectedNodes.size >= 2 && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800 mb-3">
+                <div className="p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-teal-400/30 rounded-xl backdrop-blur-sm">
+                  <p className="text-sm text-white/90 mb-3 font-medium">
                     {selectedNodes.size} nodes selected
                   </p>
                   <button
                     onClick={createGroupFromSelected}
-                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 justify-center"
+                    className="w-full px-3 py-2 bg-gradient-to-r from-teal-500 to-blue-600 text-white text-sm rounded-lg hover:from-teal-600 hover:to-blue-700 transition-all shadow-lg shadow-teal-500/30 flex items-center gap-2 justify-center font-semibold"
                   >
                     <Layers className="w-4 h-4" />
                     Create Group
@@ -3708,19 +3720,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
               <div className="space-y-2">
                 {groups.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
+                  <div className="text-center text-white/70 py-8">
                     <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">No groups created</p>
-                    <p className="text-xs text-gray-400">Select multiple nodes and click &quot;Create Group&quot;</p>
+                    <p className="text-xs text-white/60">Select multiple nodes and click &quot;Create Group&quot;</p>
                   </div>
                 ) : (
                   groups.map((group) => (
                     <div
                       key={group.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                      className={`p-3 border rounded-xl cursor-pointer transition-all backdrop-blur-sm ${
                         selectedGroup === group.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-teal-400/50 bg-teal-500/20'
+                          : 'border-white/20 bg-white/5 hover:border-white/30'
                       }`}
                       onClick={() => {
                         setSelectedGroup(group.id);
@@ -3734,19 +3746,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           className="w-3 h-3 rounded border"
                           style={{ backgroundColor: group.color }}
                         />
-                        <span className="text-sm font-medium">{group.label}</span>
-                        <span className="text-xs text-gray-500 ml-auto">
+                        <span className="text-sm font-semibold text-white drop-shadow-sm">{group.label}</span>
+                        <span className="text-xs text-white/70 ml-auto font-medium">
                           {group.nodeIds.length} nodes
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <div className="flex items-center gap-2 text-xs text-white/70">
                         <span>{Math.round(group.width)} × {Math.round(group.height)}</span>
-                        {group.isCollapsed && <span className="text-orange-600">Collapsed</span>}
+                        {group.isCollapsed && <span className="text-orange-400">Collapsed</span>}
                       </div>
 
                       {selectedGroup === group.id && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="mt-3 pt-3 border-t border-white/10">
                           <div className="flex gap-2">
                             <button
                               onClick={(e) => {
@@ -3755,7 +3767,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                   g.id === group.id ? { ...g, isCollapsed: !g.isCollapsed } : g
                                 ));
                               }}
-                              className="flex-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 transition-colors"
+                              className="flex-1 px-2 py-1 bg-white/10 text-white text-xs rounded-lg hover:bg-white/20 transition-all font-medium"
                             >
                               {group.isCollapsed ? 'Expand' : 'Collapse'}
                             </button>
@@ -3764,7 +3776,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                 e.stopPropagation();
                                 ungroupSelected();
                               }}
-                              className="flex-1 px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 transition-colors"
+                              className="flex-1 px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded-lg hover:bg-red-500/30 transition-all font-medium"
                             >
                               Ungroup
                             </button>
@@ -3782,92 +3794,92 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'controls' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">Keyboard Shortcuts</h3>
+                <h3 className="text-sm font-bold text-white drop-shadow-md">Keyboard Shortcuts</h3>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">Canvas Navigation</h4>
+                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Canvas Navigation</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Pan canvas</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Click + drag</kbd>
+                      <span className="text-white/80">Pan canvas</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Click + drag</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Zoom in/out</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Mouse wheel</kbd>
+                      <span className="text-white/80">Zoom in/out</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Mouse wheel</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Reset view</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + 0</kbd>
+                      <span className="text-white/80">Reset view</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + 0</kbd>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">Node Operations</h4>
+                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Node Operations</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Duplicate selection</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + D</kbd>
+                      <span className="text-white/80">Duplicate selection</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + D</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Delete selection</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Delete</kbd>
+                      <span className="text-white/80">Delete selection</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Delete</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Group nodes</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + G</kbd>
+                      <span className="text-white/80">Group nodes</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + G</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Multi-select</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + click</kbd>
+                      <span className="text-white/80">Multi-select</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + click</kbd>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">File Operations</h4>
+                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">File Operations</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Export JSON</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + S</kbd>
+                      <span className="text-white/80">Export JSON</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + S</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Undo</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + Z</kbd>
+                      <span className="text-white/80">Undo</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + Z</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Redo</span>
-                      <kbd className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Ctrl + Y</kbd>
+                      <span className="text-white/80">Redo</span>
+                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + Y</kbd>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">Mouse Controls</h4>
+                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Mouse Controls</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Create connection</span>
-                      <span className="text-gray-500 text-xs">Click node handles</span>
+                      <span className="text-white/80">Create connection</span>
+                      <span className="text-white/70 text-xs">Click node handles</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Add nodes</span>
-                      <span className="text-gray-500 text-xs">Drag from sidebar</span>
+                      <span className="text-white/80">Add nodes</span>
+                      <span className="text-white/70 text-xs">Drag from sidebar</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Move nodes</span>
-                      <span className="text-gray-500 text-xs">Click and drag</span>
+                      <span className="text-white/80">Move nodes</span>
+                      <span className="text-white/70 text-xs">Click and drag</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-teal-400/30 rounded-xl backdrop-blur-sm">
                 <div className="flex items-start gap-2">
-                  <HelpCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-xs text-blue-700">
-                    <strong>Pro Tip:</strong> Press <kbd className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">?</kbd> or <kbd className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">F1</kbd> anytime to open the full help dialog with more detailed instructions.
+                  <HelpCircle className="w-4 h-4 text-teal-300 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-white/90">
+                    <strong>Pro Tip:</strong> Press <kbd className="px-1 py-0.5 bg-teal-500/30 text-teal-300 rounded border border-teal-400/30 text-xs">?</kbd> or <kbd className="px-1 py-0.5 bg-teal-500/30 text-teal-300 rounded border border-teal-400/30 text-xs">F1</kbd> anytime to open the full help dialog with more detailed instructions.
                   </div>
                 </div>
               </div>
@@ -3882,18 +3894,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             return (
               <div className="p-4 space-y-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">Group Properties</h3>
+                  <h3 className="font-bold text-white drop-shadow-md">Group Properties</h3>
                   <button
                     onClick={() => setSelectedGroup(null)}
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    className="p-1 hover:bg-white/20 rounded-lg transition-all text-white"
                   >
-                    <X className="w-4 h-4 text-gray-500" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Group Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
+                  <label className="block text-sm font-semibold text-white/90 mb-1">Group Name</label>
                   <input
                     type="text"
                     value={group.label}
@@ -3902,13 +3914,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         g.id === selectedGroup ? { ...g, label: e.target.value } : g
                       ));
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                   />
                 </div>
 
                 {/* Group Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-semibold text-white/90 mb-1">Description</label>
                   <textarea
                     value={group.description || ''}
                     onChange={(e) => {
@@ -3918,14 +3930,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     }}
                     rows={3}
                     placeholder="Add a description for this group..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none backdrop-blur-sm"
                   />
                 </div>
 
                 {/* Colors */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Border Color</label>
+                    <label className="block text-sm font-semibold text-white/90 mb-1">Border Color</label>
                     <input
                       type="color"
                       value={group.borderColor}
@@ -3934,11 +3946,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, borderColor: e.target.value } : g
                         ));
                       }}
-                      className="w-full h-10 rounded border border-gray-300"
+                      className="w-full h-10 rounded-lg border border-white/20 bg-white/5"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Text Color</label>
+                    <label className="block text-sm font-semibold text-white/90 mb-1">Text Color</label>
                     <input
                       type="color"
                       value={group.color}
@@ -3947,14 +3959,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, color: e.target.value } : g
                         ));
                       }}
-                      className="w-full h-10 rounded border border-gray-300"
+                      className="w-full h-10 rounded-lg border border-white/20 bg-white/5"
                     />
                   </div>
                 </div>
 
                 {/* Background Color with Opacity */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Background</label>
+                  <label className="block text-sm font-semibold text-white/90 mb-1">Background</label>
                   <div className="flex gap-2">
                     <input
                       type="color"
@@ -3983,14 +3995,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         const r = parseInt(hexColor.slice(1, 3), 16);
                         const g = parseInt(hexColor.slice(3, 5), 16);
                         const b = parseInt(hexColor.slice(5, 7), 16);
+                        const newBgColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                        console.log('Setting background color:', newBgColor);
                         setGroups(prev => prev.map(g =>
                           g.id === selectedGroup ? {
                             ...g,
-                            backgroundColor: `rgba(${r}, ${g}, ${b}, ${opacity})`
+                            backgroundColor: newBgColor
                           } : g
                         ));
                       }}
-                      className="flex-1 h-10 rounded border border-gray-300"
+                      className="flex-1 h-10 rounded-lg border border-white/20 bg-white/5"
                     />
                     <select
                       value={(() => {
@@ -4002,6 +4016,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       })()}
                       onChange={(e) => {
                         const opacity = e.target.value;
+                        console.log('Changing opacity to:', opacity);
+                        console.log('Current backgroundColor:', group.backgroundColor);
+
                         // Get current color
                         let r = 59, g = 130, b = 246; // default blue
                         if (group.backgroundColor.startsWith('rgba')) {
@@ -4010,29 +4027,43 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                             r = parseInt(match[1]);
                             g = parseInt(match[2]);
                             b = parseInt(match[3]);
+                            console.log('Extracted RGB:', r, g, b);
+                          } else {
+                            console.log('Failed to match rgba pattern');
                           }
+                        } else if (group.backgroundColor.startsWith('#')) {
+                          // Handle hex color format
+                          const hex = group.backgroundColor;
+                          r = parseInt(hex.slice(1, 3), 16);
+                          g = parseInt(hex.slice(3, 5), 16);
+                          b = parseInt(hex.slice(5, 7), 16);
+                          console.log('Extracted RGB from hex:', r, g, b);
                         }
+
+                        const newBgColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                        console.log('Setting new background color:', newBgColor);
+
                         setGroups(prev => prev.map(g =>
                           g.id === selectedGroup ? {
                             ...g,
-                            backgroundColor: `rgba(${r}, ${g}, ${b}, ${opacity})`
+                            backgroundColor: newBgColor
                           } : g
                         ));
                       }}
-                      className="px-2 py-2 border border-gray-300 rounded"
+                      className="px-2 py-2 bg-gray-800 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                     >
-                      <option value="0.05">5%</option>
-                      <option value="0.1">10%</option>
-                      <option value="0.2">20%</option>
-                      <option value="0.3">30%</option>
-                      <option value="0.5">50%</option>
+                      <option value="0.05" className="bg-gray-800 text-white">5%</option>
+                      <option value="0.1" className="bg-gray-800 text-white">10%</option>
+                      <option value="0.2" className="bg-gray-800 text-white">20%</option>
+                      <option value="0.3" className="bg-gray-800 text-white">30%</option>
+                      <option value="0.5" className="bg-gray-800 text-white">50%</option>
                     </select>
                   </div>
                 </div>
 
                 {/* Padding */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-white/90 mb-1">
                     Padding: {group.padding}px
                   </label>
                   <input
@@ -4052,7 +4083,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 {/* Position & Size */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">X Position</label>
+                    <label className="block text-sm font-semibold text-white/90 mb-1">X Position</label>
                     <input
                       type="number"
                       value={Math.round(group.x)}
@@ -4061,11 +4092,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, x: parseInt(e.target.value) || 0 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Y Position</label>
+                    <label className="block text-sm font-semibold text-white/90 mb-1">Y Position</label>
                     <input
                       type="number"
                       value={Math.round(group.y)}
@@ -4074,11 +4105,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, y: parseInt(e.target.value) || 0 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Width</label>
+                    <label className="block text-sm font-semibold text-white/90 mb-1">Width</label>
                     <input
                       type="number"
                       value={Math.round(group.width)}
@@ -4087,11 +4118,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, width: parseInt(e.target.value) || 100 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Height</label>
+                    <label className="block text-sm font-semibold text-white/90 mb-1">Height</label>
                     <input
                       type="number"
                       value={Math.round(group.height)}
@@ -4100,16 +4131,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, height: parseInt(e.target.value) || 100 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
                     />
                   </div>
                 </div>
 
                 {/* Group Info */}
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><strong>Nodes in group:</strong> {group.nodeIds.length}</p>
-                    <p><strong>Status:</strong> {group.isCollapsed ? 'Collapsed' : 'Expanded'}</p>
+                <div className="p-3 bg-white/5 border border-white/20 rounded-xl backdrop-blur-sm">
+                  <div className="text-sm text-white/90 space-y-1">
+                    <p><strong className="text-teal-300">Nodes in group:</strong> {group.nodeIds.length}</p>
+                    <p><strong className="text-teal-300">Status:</strong> {group.isCollapsed ? 'Collapsed' : 'Expanded'}</p>
                   </div>
                 </div>
 
@@ -4121,7 +4152,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         g.id === selectedGroup ? { ...g, isCollapsed: !g.isCollapsed } : g
                       ));
                     }}
-                    className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+                    className="flex-1 px-3 py-2 bg-teal-500/20 text-teal-300 rounded-lg hover:bg-teal-500/30 transition-all font-semibold"
                   >
                     {group.isCollapsed ? 'Expand' : 'Collapse'}
                   </button>
@@ -4131,7 +4162,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         g.id === selectedGroup ? { ...g, isVisible: !g.isVisible } : g
                       ));
                     }}
-                    className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center justify-center gap-2"
+                    className="flex-1 px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all font-semibold flex items-center justify-center gap-2"
                   >
                     {group.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     {group.isVisible ? 'Hide' : 'Show'}
@@ -4143,7 +4174,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     onClick={() => {
                       ungroupSelected();
                     }}
-                    className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors font-medium"
+                    className="flex-1 px-3 py-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-all font-semibold"
                   >
                     Ungroup
                   </button>
@@ -4151,7 +4182,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     onClick={() => {
                       deleteSelected();
                     }}
-                    className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium"
+                    className="flex-1 px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all font-semibold"
                   >
                     Delete Group
                   </button>
@@ -4231,34 +4262,37 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Unified Toolbar */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+        <div className="bg-gradient-to-r from-gray-900/95 via-slate-900/95 to-gray-900/95 backdrop-blur-xl border-b border-white/10 px-6 py-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             {/* Left Side - Title */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-semibold text-gray-900">Architecture Diagram</h1>
+            <div className="flex-1 min-w-0 flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30">
+                <Layers className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-xl font-bold text-white drop-shadow-lg">Architecture Diagram</h1>
             </div>
 
             {/* Right Side - All Controls */}
             <div className="flex items-center gap-2 ml-6">
               {/* Quick Node Creation */}
-              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'service')!, 100, 100)}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Add Service Node"
                 >
                   <Server className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'database')!, 150, 100)}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Add Database Node"
                 >
                   <Database className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'cloud')!, 200, 100)}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Add Cloud Service"
                 >
                   <Cloud className="w-4 h-4" />
@@ -4266,11 +4300,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               </div>
 
               {/* Edit Actions */}
-              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={undo}
                   disabled={historyIndex <= 0}
-                  className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Undo (Ctrl+Z)"
                 >
                   <Undo className="w-4 h-4" />
@@ -4278,7 +4312,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={redo}
                   disabled={historyIndex >= history.length - 1}
-                  className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Redo (Ctrl+Y)"
                 >
                   <Redo className="w-4 h-4" />
@@ -4286,7 +4320,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={duplicateSelected}
                   disabled={!selectedNode && selectedNodes.size === 0}
-                  className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Duplicate Selection (Ctrl+D)"
                 >
                   <Plus className="w-4 h-4" />
@@ -4294,7 +4328,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={createGroupFromSelected}
                   disabled={selectedNodes.size < 2}
-                  className="p-2 rounded-md hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-blue-600"
+                  className="p-2 rounded-lg hover:bg-teal-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-teal-400 hover:text-teal-300 hover:scale-110"
                   title="Group Selected Nodes (Ctrl+G)"
                 >
                   <Layers className="w-4 h-4" />
@@ -4302,7 +4336,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={deleteSelected}
                   disabled={!selectedNode && !selectedEdge && !selectedGroup && selectedNodes.size === 0}
-                  className="p-2 rounded-md hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-red-600"
+                  className="p-2 rounded-lg hover:bg-red-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-red-400 hover:text-red-300 hover:scale-110"
                   title="Delete Selection (Del)"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -4310,63 +4344,63 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               </div>
 
               {/* Layout Controls */}
-              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <div className="relative" data-layout-menu>
                   <button
                     onClick={() => setShowLayoutMenu(!showLayoutMenu)}
                     disabled={nodes.length === 0 || isLayouting}
-                    className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
                     title="Auto Layout"
                   >
                     {isLayouting ? (
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-teal-400/30 border-t-teal-400 rounded-full animate-spin" />
                     ) : (
                       <Workflow className="w-4 h-4" />
                     )}
                   </button>
 
                   {showLayoutMenu && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px]">
+                    <div className="absolute top-full left-0 mt-1 bg-gray-900/98 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/50 z-50 min-w-[180px]">
                       <div className="p-2">
-                        <div className="text-xs font-medium text-gray-500 mb-2">Layout Algorithms</div>
+                        <div className="text-xs font-semibold text-white/70 mb-2 px-2">Layout Algorithms</div>
                         <button
                           onClick={() => applyAutoLayout('horizontal')}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
                         >
                           <ArrowRight className="w-3 h-3" />
                           Horizontal Flow
                         </button>
                         <button
                           onClick={() => applyAutoLayout('vertical')}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
                         >
                           <ArrowRight className="w-3 h-3 rotate-90" />
                           Vertical Flow
                         </button>
                         <button
                           onClick={() => applyAutoLayout('tree')}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
                         >
                           <GitBranch className="w-3 h-3" />
                           Tree Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('radial')}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
                         >
                           <Radio className="w-3 h-3" />
                           Radial Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('force')}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
                         >
                           <Zap className="w-3 h-3" />
                           Force Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('compact')}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
                         >
                           <Layers className="w-3 h-3" />
                           Compact Layout
@@ -4378,38 +4412,38 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               </div>
 
               {/* View Controls */}
-              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(3, prev.zoom * 1.2) }))}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Zoom In"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewport(prev => ({ ...prev, zoom: Math.max(0.1, prev.zoom * 0.8) }))}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Zoom Out"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                   title="Reset View (Ctrl+0)"
                 >
                   <Maximize className="w-4 h-4" />
                 </button>
-                <div className="text-xs text-gray-500 px-2 min-w-[45px] text-center">
+                <div className="text-xs text-white/70 font-medium px-2 min-w-[45px] text-center bg-white/5 rounded-lg py-1">
                   {Math.round(viewport.zoom * 100)}%
                 </div>
               </div>
 
               {/* File Operations */}
-              <div className="flex items-center gap-1 border-r border-gray-300 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => setShowSaveDialog(true)}
-                  className="p-2 rounded-md hover:bg-green-100 transition-colors text-green-600"
+                  className="p-2 rounded-lg hover:bg-green-500/20 transition-all text-green-400 hover:text-green-300 hover:scale-110"
                   title="Save Diagram to Cloud"
                 >
                   <Save className="w-4 h-4" />
@@ -4419,14 +4453,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     loadSavedDiagramsRef.current();
                     setShowLoadDialog(true);
                   }}
-                  className="p-2 rounded-md hover:bg-blue-100 transition-colors text-blue-600"
+                  className="p-2 rounded-lg hover:bg-blue-500/20 transition-all text-blue-400 hover:text-blue-300 hover:scale-110"
                   title="Load Diagram from Cloud"
                 >
                   <FolderOpen className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setShowTemplatesDialog(true)}
-                  className="p-2 rounded-md hover:bg-purple-100 transition-colors text-purple-600"
+                  className="p-2 rounded-lg hover:bg-purple-500/20 transition-all text-purple-400 hover:text-purple-300 hover:scale-110"
                   title="Load Template Diagram"
                 >
                   <Layers className="w-4 h-4" />
@@ -4436,71 +4470,78 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Export Dropdown */}
               <div className="relative">
                 <button
-                  className="flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors text-sm font-medium"
-                  onClick={(e) => {
-                    const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
-                    if (dropdown) {
-                      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+                  ref={exportButtonRef}
+                  className="flex items-center gap-2 bg-gradient-to-r from-teal-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-teal-600 hover:to-blue-700 transition-all duration-200 text-sm font-semibold shadow-lg shadow-teal-500/30 hover:scale-105"
+                  onClick={() => {
+                    if (exportButtonRef.current) {
+                      const rect = exportButtonRef.current.getBoundingClientRect();
+                      setExportMenuPosition({
+                        top: rect.bottom + 8,
+                        right: window.innerWidth - rect.right
+                      });
                     }
+                    setShowExportMenu(!showExportMenu);
                   }}
                 >
                   <Download className="w-4 h-4" />
                   Export
                 </button>
-                <div
-                  className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-                  style={{ display: 'none' }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = 'none';
-                  }}
-                >
+                {showExportMenu && typeof window !== 'undefined' && createPortal(
+                  <div
+                    className="fixed w-48 bg-gray-900/98 backdrop-blur-xl rounded-xl shadow-2xl shadow-black/50 border border-white/20 z-[9999]"
+                    style={{
+                      top: `${exportMenuPosition.top}px`,
+                      right: `${exportMenuPosition.right}px`
+                    }}
+                    onMouseLeave={() => setShowExportMenu(false)}
+                  >
                   <button
                     onClick={() => handleExport('png')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as PNG
-                    <span className="ml-auto text-xs text-gray-400">Ctrl+E</span>
+                    <span className="ml-auto text-xs text-white/50">Ctrl+E</span>
                   </button>
                   <button
                     onClick={() => handleExport('svg')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as SVG
-                    <span className="ml-auto text-xs text-gray-400">Ctrl+Shift+E</span>
+                    <span className="ml-auto text-xs text-white/50">Ctrl+Shift+E</span>
                   </button>
                   <button
                     onClick={() => handleExport('pdf')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
                   >
                     <FileText className="w-4 h-4" />
                     Export as PDF
                   </button>
                   <button
                     onClick={() => handleExport('jpg')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as JPG
                   </button>
-                  <hr className="border-gray-200 dark:border-gray-600" />
+                  <hr className="border-white/10" />
                   <button
                     onClick={() => setShowExportDialog(true)}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm"
+                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
                   >
                     <Settings className="w-4 h-4" />
                     Export Options...
                   </button>
                   <button
                     onClick={exportAsJSON}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm border-t border-gray-200 dark:border-gray-600"
+                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all border-t border-white/10"
                   >
                     <FileJson className="w-4 h-4" />
                     Export as JSON
-                    <span className="ml-auto text-xs text-gray-400">Ctrl+J</span>
+                    <span className="ml-auto text-xs text-white/50">Ctrl+J</span>
                   </button>
-                  <label className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm cursor-pointer border-t border-gray-100">
+                  <label className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white cursor-pointer border-t border-white/10 transition-all">
                     <Save className="w-4 h-4" />
                     Import JSON
                     <input
@@ -4510,13 +4551,15 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       className="hidden"
                     />
                   </label>
-                </div>
+                </div>,
+                document.body
+              )}
               </div>
 
               {/* Performance Stats */}
               <button
                 onClick={() => setShowPerformanceStats(!showPerformanceStats)}
-                className={`p-2 rounded-md transition-colors ${showPerformanceStats ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
+                className={`p-2 rounded-lg transition-all ${showPerformanceStats ? 'bg-teal-500/20 text-teal-300 scale-110' : 'text-white/80 hover:bg-white/10 hover:text-white hover:scale-110'}`}
                 title="Toggle Performance Stats"
               >
                 <BarChart3 className="w-4 h-4" />
@@ -4525,7 +4568,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Help */}
               <button
                 onClick={() => setShowHelp(true)}
-                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
                 title="Show Help (? key)"
               >
                 <HelpCircle className="w-4 h-4" />
@@ -4534,53 +4577,67 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Profile Menu */}
               <div className="relative">
                 <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  ref={profileButtonRef}
+                  onClick={() => {
+                    if (profileButtonRef.current) {
+                      const rect = profileButtonRef.current.getBoundingClientRect();
+                      setProfileMenuPosition({
+                        top: rect.bottom + 8,
+                        right: window.innerWidth - rect.right
+                      });
+                    }
+                    setShowProfileMenu(!showProfileMenu);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 transition-all"
                   title="Profile Menu"
                 >
                   {user?.photoURL ? (
                     <img
                       src={user.photoURL}
                       alt="Profile"
-                      className="w-6 h-6 rounded-full"
+                      className="w-6 h-6 rounded-full ring-2 ring-teal-400/50"
                     />
                   ) : (
-                    <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                       <span className="text-white text-xs font-medium">
                         {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
                       </span>
                     </div>
                   )}
-                  <span className="text-sm text-gray-700 max-w-[120px] truncate">
+                  <span className="text-sm text-white font-medium max-w-[120px] truncate">
                     {user?.displayName || user?.email || 'User'}
                   </span>
                 </button>
 
-                {showProfileMenu && (
+                {showProfileMenu && typeof window !== 'undefined' && createPortal(
                   <div
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+                    className="fixed w-64 bg-gray-900/98 backdrop-blur-xl rounded-xl shadow-2xl shadow-black/50 border border-white/20 z-[9999]"
+                    style={{
+                      top: `${profileMenuPosition.top}px`,
+                      right: `${profileMenuPosition.right}px`
+                    }}
                     onMouseLeave={() => setShowProfileMenu(false)}
                   >
-                    <div className="p-4 border-b border-gray-100">
+                    <div className="p-4 border-b border-white/10">
                       <div className="flex items-center gap-3">
                         {user?.photoURL ? (
                           <img
                             src={user.photoURL}
                             alt="Profile"
-                            className="w-10 h-10 rounded-full"
+                            className="w-10 h-10 rounded-full ring-2 ring-teal-400/50"
                           />
                         ) : (
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                          <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                             <span className="text-white text-sm font-medium">
                               {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
                             </span>
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-semibold text-white truncate">
                             {user?.displayName || 'User'}
                           </p>
-                          <p className="text-xs text-gray-500 truncate">
+                          <p className="text-xs text-white/70 truncate">
                             {user?.email}
                           </p>
                         </div>
@@ -4594,7 +4651,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           // Navigate to dashboard
                           window.location.href = '/';
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                        className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all"
                       >
                         <Square className="w-4 h-4" />
                         Dashboard
@@ -4605,19 +4662,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           setShowProfileMenu(false);
                           setShowKeyboardShortcuts(true);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                        className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all"
                       >
                         <HelpCircle className="w-4 h-4" />
                         Help & Shortcuts
                       </button>
 
-                      <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
-
-                      <div className="px-4 py-2">
-                        <ThemeToggle />
-                      </div>
-
-                      <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                      <div className="border-t border-white/10 my-1"></div>
 
                       <button
                         onClick={async () => {
@@ -4632,23 +4683,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                             }
                           }
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 hover:text-red-300 flex items-center gap-3 transition-all"
                       >
                         <X className="w-4 h-4" />
                         Sign Out
                       </button>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
 
-              {/* Status */}
-              <div className="flex items-center gap-2 ml-2">
-                <div className="text-xs text-gray-600">
-                  Packets: <span className="font-medium text-gray-900">{packets.length}</span>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-              </div>
             </div>
           </div>
         </div>
