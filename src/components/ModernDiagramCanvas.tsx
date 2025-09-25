@@ -1741,27 +1741,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
 
-      // Selection handles (corner indicators) - only for non-circle shapes
-      if (shape !== 'circle') {
-        const handleSize = 10 / viewport.zoom;
-        ctx.fillStyle = '#3b82f6';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2 / viewport.zoom;
-
-        const handles = [
-          { x: x - padding, y: y - padding }, // top-left
-          { x: x + width + padding, y: y - padding }, // top-right
-          { x: x - padding, y: y + height + padding }, // bottom-left
-          { x: x + width + padding, y: y + height + padding } // bottom-right
-        ];
-
-        handles.forEach(handle => {
-          ctx.beginPath();
-          ctx.arc(handle.x, handle.y, handleSize / 2, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.stroke();
-        });
-      }
     }
 
     // Main shape
@@ -4542,7 +4521,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </button>
                 {showExportMenu && typeof window !== 'undefined' && createPortal(
                   <div
-                    className="fixed w-48 bg-gray-900/98 backdrop-blur-xl rounded-xl shadow-2xl shadow-black/50 border border-white/20 z-[9999]"
+                    className={`fixed w-48 backdrop-blur-xl rounded-xl shadow-2xl border z-[9999] ${
+                      isDark
+                        ? 'bg-gray-900/98 shadow-black/50 border-white/20'
+                        : 'bg-white/95 shadow-gray-500/20 border-gray-200/80'
+                    }`}
                     style={{
                       top: `${exportMenuPosition.top}px`,
                       right: `${exportMenuPosition.right}px`
@@ -4551,7 +4534,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   >
                   <button
                     onClick={() => handleExport('png')}
-                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as PNG
@@ -4559,7 +4542,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </button>
                   <button
                     onClick={() => handleExport('svg')}
-                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as SVG
@@ -4567,22 +4550,22 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </button>
                   <button
                     onClick={() => handleExport('pdf')}
-                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                   >
                     <FileText className="w-4 h-4" />
                     Export as PDF
                   </button>
                   <button
                     onClick={() => handleExport('jpg')}
-                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as JPG
                   </button>
-                  <hr className="border-white/10" />
+                  <hr className={isDark ? 'border-white/10' : 'border-gray-200/50'} />
                   <button
                     onClick={() => setShowExportDialog(true)}
-                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                   >
                     <Settings className="w-4 h-4" />
                     Export Options...
@@ -4595,7 +4578,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     Export as JSON
                     <span className={`ml-auto text-xs ${getThemeStyles().textMuted}`}>Ctrl+J</span>
                   </button>
-                  <label className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white cursor-pointer border-t border-white/10 transition-all`}>
+                  <label className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm cursor-pointer border-t transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white border-white/10' : 'hover:bg-gray-100 hover:text-gray-900 border-gray-200/50'}`}>
                     <Save className="w-4 h-4" />
                     Import JSON
                     <input
@@ -4669,14 +4652,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 {showProfileMenu && typeof window !== 'undefined' && createPortal(
                   <div
-                    className="fixed w-64 bg-gray-900/98 backdrop-blur-xl rounded-xl shadow-2xl shadow-black/50 border border-white/20 z-[9999]"
+                    className={`fixed w-64 backdrop-blur-xl rounded-xl shadow-2xl border z-[9999] ${
+                      isDark
+                        ? 'bg-gray-900/98 shadow-black/50 border-white/20'
+                        : 'bg-white/95 shadow-gray-500/20 border-gray-200/80'
+                    }`}
                     style={{
                       top: `${profileMenuPosition.top}px`,
                       right: `${profileMenuPosition.right}px`
                     }}
                     onMouseLeave={() => setShowProfileMenu(false)}
                   >
-                    <div className="p-4 border-b border-white/10">
+                    <div className={`p-4 border-b ${isDark ? 'border-white/10' : 'border-gray-200/50'}`}>
                       <div className="flex items-center gap-3">
                         {user?.photoURL ? (
                           <img
@@ -4692,7 +4679,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white truncate">
+                          <p className={`text-sm font-semibold truncate ${
+                            isDark ? 'text-white' : 'text-gray-900'
+                          }`}>
                             {user?.displayName || 'User'}
                           </p>
                           <p className={`text-xs ${getThemeStyles().textMuted} truncate`}>
@@ -4709,7 +4698,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           // Navigate to dashboard
                           window.location.href = '/';
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all`}
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                       >
                         <Square className="w-4 h-4" />
                         Dashboard
@@ -4720,13 +4709,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           setShowProfileMenu(false);
                           setShowKeyboardShortcuts(true);
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all`}
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                       >
                         <HelpCircle className="w-4 h-4" />
                         Help & Shortcuts
                       </button>
 
-                      <div className="border-t border-white/10 my-1"></div>
+                      <div className={`border-t my-1 ${isDark ? 'border-white/10' : 'border-gray-200/50'}`}></div>
 
                       <button
                         onClick={async () => {
@@ -4741,7 +4730,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                             }
                           }
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 hover:text-red-300 flex items-center gap-3 transition-all"
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${
+                          isDark
+                            ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300'
+                            : 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                        }`}
                       >
                         <X className="w-4 h-4" />
                         Sign Out
@@ -5584,8 +5577,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 style={{
                   left: `${Math.max(0, -viewport.x * 0.08 + 4)}px`,
                   top: `${Math.max(0, -viewport.y * 0.08 + 4)}px`,
-                  width: `${Math.min(180, 1000 * 0.08 / viewport.zoom)}px`,
-                  height: `${Math.min(108, 700 * 0.08 / viewport.zoom)}px`,
+                  width: `${Math.min(180, (canvasRef.current?.getBoundingClientRect().width || 1000) * 0.08 / viewport.zoom)}px`,
+                  height: `${Math.min(108, (canvasRef.current?.getBoundingClientRect().height || 700) * 0.08 / viewport.zoom)}px`,
                   zIndex: 0
                 }}
               />

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen antialiased transition-colors duration-300 ease-in-out">
+      <body className="min-h-screen antialiased" suppressHydrationWarning>
         <ThemeProvider defaultTheme="system" storageKey="nexflow-theme">
           {children}
         </ThemeProvider>

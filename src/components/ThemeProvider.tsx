@@ -82,9 +82,14 @@ export function ThemeProvider({
     isDark,
   };
 
-  // Prevent hydration mismatch
+  // Prevent hydration mismatch by rendering children even when not mounted
+  // but with a neutral state
   if (!mounted) {
-    return null;
+    return (
+      <ThemeProviderContext.Provider {...props} value={initialState}>
+        {children}
+      </ThemeProviderContext.Provider>
+    );
   }
 
   return (
