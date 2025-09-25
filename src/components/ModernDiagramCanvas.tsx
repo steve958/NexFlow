@@ -10,6 +10,8 @@ import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLay
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
 import { DiagramExporter } from '@/lib/exportUtils';
+import { useCanvasTheme } from './CanvasThemeProvider';
+import { CanvasThemeToggle } from './CanvasThemeToggle';
 
 interface Node {
   id: string;
@@ -366,8 +368,27 @@ interface ModernDiagramCanvasProps {
 }
 
 const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
+  const { isDark } = useCanvasTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDark = true; // Always use dark theme
+
+  // Theme-aware style helpers - enhanced light mode with shadows and borders
+  const getThemeStyles = () => ({
+    background: isDark ? 'bg-white/5' : 'bg-white/95 shadow-md border border-gray-200/70 backdrop-blur-sm',
+    border: isDark ? 'border-white/10' : 'border-gray-200/80',
+    borderHover: isDark ? 'hover:border-teal-400/50' : 'hover:border-blue-300/80 hover:shadow-lg',
+    text: isDark ? 'text-white' : 'text-gray-800',
+    textSecondary: isDark ? 'text-white/70' : 'text-gray-600',
+    textTertiary: isDark ? 'text-white/50' : 'text-gray-500',
+    textBold: isDark ? 'text-white' : 'text-gray-900',
+    textMuted: isDark ? 'text-white/70' : 'text-gray-500',
+    textOnColor: isDark ? 'text-teal-300' : 'text-blue-600',
+    hoverBg: isDark ? 'hover:bg-white/10' : 'hover:bg-gray-50 hover:shadow-sm',
+    activeBg: isDark ? 'bg-gradient-to-br from-teal-500 to-blue-600' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm',
+    inputBg: isDark ? 'bg-white/5' : 'bg-white shadow-sm',
+    inputBorder: isDark ? 'border-white/20' : 'border-gray-200/80',
+    inputText: isDark ? 'text-white' : 'text-gray-800',
+    placeholder: isDark ? 'placeholder-white/50' : 'placeholder-gray-400',
+  });
 
   // History management for undo/redo
   const [history, setHistory] = useState<DiagramState[]>([]);
@@ -3082,22 +3103,34 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   // Don't render complex UI until client-side hydration is complete
   if (!isClient) {
     return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 to-stone-100'}`}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading NexFlow</h2>
-          <p className="text-gray-600">Preparing your diagram canvas...</p>
+          <div className={`w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4 ${isDark ? 'border-blue-500' : 'border-indigo-500'}`}></div>
+          <h2 className={`text-xl font-semibold mb-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>Loading NexFlow</h2>
+          <p className={isDark ? 'text-gray-300' : 'text-slate-600'}>Preparing your diagram canvas...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 flex overflow-hidden">
+    <div className={`h-screen w-screen flex overflow-hidden ${
+      isDark
+        ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
       {/* Left Sidebar */}
-      <div className="w-[480px] bg-gradient-to-b from-gray-900/95 to-gray-900/98 backdrop-blur-xl border-r border-white/10 flex flex-col min-h-0">
+      <div className={`w-[480px] backdrop-blur-xl border-r flex flex-col min-h-0 ${
+        isDark
+          ? 'bg-gradient-to-b from-gray-900/95 to-gray-900/98 border-white/10'
+          : 'bg-gradient-to-b from-white/95 to-gray-50/95 border-gray-200/80 shadow-xl'
+      }`}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-white/10 flex-shrink-0 bg-gradient-to-r from-teal-900/20 to-blue-900/20 backdrop-blur-sm z-20">
+        <div className={`p-4 border-b flex-shrink-0 backdrop-blur-sm z-20 ${
+          isDark
+            ? 'border-white/10 bg-gradient-to-r from-teal-900/20 to-blue-900/20'
+            : 'border-slate-200/60 bg-gradient-to-r from-indigo-50/60 to-purple-50/60'
+        }`}>
           <div className="flex items-center gap-3 mb-4">
             <div className="w-14 h-14 relative">
               <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-blue-500 rounded-xl blur-md opacity-50"></div>
@@ -3109,11 +3142,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 className="w-full h-full object-contain rounded-xl relative drop-shadow-2xl"
               />
             </div>
-            <h2 className="text-xl font-bold text-white drop-shadow-lg">NexFlow</h2>
+            <h2 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>NexFlow</h2>
           </div>
 
           {/* Panel Tabs */}
-          <div className="grid grid-cols-3 gap-2 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 p-2">
+          <div className={`grid grid-cols-3 gap-2 rounded-xl backdrop-blur-sm p-2 ${getThemeStyles().background} ${getThemeStyles().border}`}>
             {[
               { id: 'templates', label: 'Items', icon: Square },
               { id: 'groups', label: 'Groups', icon: Layers },
@@ -3133,8 +3166,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 }}
                 className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                   activePanel === id
-                    ? 'bg-gradient-to-br from-teal-500 to-blue-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                    ? `${getThemeStyles().activeBg} ${isDark ? 'text-white' : 'text-blue-700 font-semibold'} shadow-lg ${isDark ? 'shadow-teal-500/30' : 'shadow-blue-500/30'}`
+                    : `${getThemeStyles().textSecondary} ${isDark ? 'hover:text-white' : 'hover:text-gray-900'} ${getThemeStyles().hoverBg}`
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -3149,16 +3182,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'templates' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white drop-shadow-md">Node Templates</h3>
+                <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Node Templates</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowCustomNodeBuilder(true)}
-                    className="p-1.5 text-teal-300 hover:bg-teal-500/20 rounded-lg transition-all hover:scale-110"
+                    className={`p-1.5 rounded-lg transition-all hover:scale-110 ${getThemeStyles().textOnColor} ${isDark ? 'hover:bg-teal-500/20' : 'hover:bg-blue-100'}`}
                     title="Create Custom Node"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
-                  <div className="text-xs text-white/70 font-medium">
+                  <div className={`text-xs font-medium ${getThemeStyles().textMuted}`}>
                     {allNodeTemplates.filter((template) =>
                       template.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       template.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -3175,9 +3208,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   placeholder="Search templates..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-3 py-2 pl-8 text-sm bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                  className={`w-full px-3 py-2 pl-8 text-sm rounded-lg focus:outline-none focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                 />
-                <div className="absolute left-2.5 top-2.5 text-gray-400">
+                <div className={`absolute left-2.5 top-2.5 ${getThemeStyles().textMuted}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
@@ -3194,7 +3227,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 )}
               </div>
 
-              <p className="text-xs text-white/70">
+              <p className={`text-xs ${getThemeStyles().textMuted}`}>
                 Drag templates onto the canvas to create new nodes
               </p>
 
@@ -3212,7 +3245,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       key={template.type}
                       draggable
                       onDragStart={(e) => handleTemplateDragStart(template, e)}
-                      className="group p-3 bg-white/5 border border-white/20 rounded-xl cursor-grab active:cursor-grabbing hover:border-teal-400/50 hover:bg-white/10 hover:shadow-lg hover:shadow-teal-500/20 transition-all duration-200 backdrop-blur-sm"
+                      className={`group p-3 rounded-xl cursor-grab active:cursor-grabbing transition-all duration-200 backdrop-blur-sm ${
+                        isDark
+                          ? 'bg-white/5 border border-white/20 hover:border-teal-400/50 hover:bg-white/10 hover:shadow-lg hover:shadow-teal-500/20'
+                          : 'bg-white/90 border border-gray-200/80 hover:border-blue-300/80 hover:bg-white hover:shadow-lg hover:shadow-blue-500/10'
+                      }`}
                       style={{ borderLeftColor: template.color, borderLeftWidth: '4px' }}
                     >
                       <div className="flex items-center gap-3">
@@ -3223,8 +3260,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           <Icon className="w-5 h-5" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-white text-sm drop-shadow-sm">{template.label}</div>
-                          <div className="text-xs text-white/70 truncate">{template.description}</div>
+                          <div className={`font-semibold text-sm drop-shadow-sm ${getThemeStyles().textBold}`}>{template.label}</div>
+                          <div className={`text-xs truncate ${getThemeStyles().textMuted}`}>{template.description}</div>
                         </div>
                       </div>
                     </div>
@@ -3235,7 +3272,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               <div className="mt-6 p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 rounded-xl border border-teal-400/30 backdrop-blur-sm">
                 <div className="flex items-start gap-2">
                   <div className="w-4 h-4 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex-shrink-0 mt-0.5 shadow-lg"></div>
-                  <div className="text-xs text-white/90">
+                  <div className={`text-xs ${getThemeStyles().textBold}`}>
                     <strong>Tip:</strong> Drag any template to the canvas to create a new node. You can customize colors, labels, and other properties in the Nodes panel.
                   </div>
                 </div>
@@ -3246,12 +3283,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'animations' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white drop-shadow-md">Animation Controls</h3>
-                <div className="text-xs text-white/70 font-medium">{packets.length} active packets</div>
+                <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Animation Controls</h3>
+                <div className={`text-xs font-medium ${getThemeStyles().textMuted}`}>{packets.length} active packets</div>
               </div>
 
               {edges.length === 0 && (
-                <div className="text-center text-white/70 py-6">
+                <div className={`text-center py-6 ${getThemeStyles().textMuted}`}>
                   <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No connections available</p>
                   <p className="text-xs">Connect nodes to enable animations</p>
@@ -3274,8 +3311,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <div className="font-semibold text-sm text-white drop-shadow-sm">{edge.label}</div>
-                        <div className="text-xs text-white/70">
+                        <div className={`font-semibold text-sm drop-shadow-sm ${getThemeStyles().textBold}`}>{edge.label}</div>
+                        <div className={`text-xs ${getThemeStyles().textMuted}`}>
                           {getNode(edge.sourceId)?.label} → {getNode(edge.targetId)?.label}
                         </div>
                       </div>
@@ -3287,7 +3324,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         className={`p-2 rounded-lg transition-all ${
                           config.enabled
                             ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                            : 'bg-white/10 text-white/60 hover:bg-white/20'
+                            : `${getThemeStyles().hoverBg} ${getThemeStyles().textMuted}`
                         }`}
                       >
                         {config.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -3297,7 +3334,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     {config.enabled && (
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-xs font-semibold text-white/90 mb-1">Speed</label>
+                          <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Speed</label>
                           <input
                             type="range"
                             min="0.005"
@@ -3313,7 +3350,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-white/90 mb-1">Frequency</label>
+                          <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Frequency</label>
                           <input
                             type="range"
                             min="20"
@@ -3330,7 +3367,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-xs font-semibold text-white/90 mb-1">Size</label>
+                            <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Size</label>
                             <input
                               type="range"
                               min="4"
@@ -3345,7 +3382,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           </div>
 
                           <div>
-                            <label className="block text-xs font-semibold text-white/90 mb-1">Color</label>
+                            <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Color</label>
                             <input
                               type="color"
                               value={config.color}
@@ -3360,7 +3397,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
-                            <label className="text-xs font-semibold text-white/90">Shape:</label>
+                            <label className={`text-xs font-semibold ${getThemeStyles().textBold}`}>Shape:</label>
                             <div className="flex gap-1">
                               {[
                                 { shape: 'circle', icon: Circle },
@@ -3377,7 +3414,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                   className={`p-1 rounded-lg transition-all ${
                                     config.shape === shape
                                       ? 'bg-teal-500/30 text-teal-300'
-                                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                                      : `${getThemeStyles().hoverBg} ${getThemeStyles().textMuted}`
                                   }`}
                                 >
                                   <Icon className="w-3 h-3" />
@@ -3386,7 +3423,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                             </div>
                           </div>
 
-                          <label className="flex items-center gap-2 text-xs text-white/90 font-medium">
+                          <label className={`flex items-center gap-2 text-xs font-medium ${getThemeStyles().textBold}`}>
                             <input
                               type="checkbox"
                               checked={config.trail}
@@ -3416,32 +3453,36 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 return (
                   <>
-                    <div className="flex items-center justify-between sticky top-0 bg-gradient-to-b from-gray-900 to-gray-900/80 backdrop-blur-sm pb-2 z-10">
-                      <h3 className="text-sm font-bold text-white drop-shadow-md">Node Properties</h3>
+                    <div className={`flex items-center justify-between sticky top-0 backdrop-blur-sm pb-2 z-10 ${
+                      isDark
+                        ? 'bg-gradient-to-b from-gray-900 to-gray-900/80'
+                        : 'bg-gradient-to-b from-white to-white/80'
+                    }`}>
+                      <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Node Properties</h3>
                       <button
                         onClick={() => setNodes(prev => prev.map(n =>
                           n.id === selectedNode ? { ...n, isVisible: !n.isVisible } : n
                         ))}
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white"
+                        className={`p-2 rounded-lg transition-all ${getThemeStyles().hoverBg} ${getThemeStyles().text}`}
                       >
                         {node.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-white/90 mb-1">Label</label>
+                      <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Label</label>
                       <input
                         type="text"
                         value={node.label}
                         onChange={(e) => setNodes(prev => prev.map(n =>
                           n.id === selectedNode ? { ...n, label: e.target.value } : n
                         ))}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                        className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-white/90 mb-1">Description</label>
+                      <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Description</label>
                       <textarea
                         value={node.description || ''}
                         onChange={(e) => setNodes(prev => prev.map(n =>
@@ -3449,39 +3490,39 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         ))}
                         placeholder="Add a description for this node..."
                         rows={3}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg text-sm resize-none focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                        className={`w-full px-3 py-2 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} rounded-lg text-sm resize-none focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm`}
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Width</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Width</label>
                         <input
                           type="number"
                           value={node.width}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, width: Number(e.target.value) } : n
                           ))}
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                          className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Height</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Height</label>
                         <input
                           type="number"
                           value={node.height}
                           onChange={(e) => setNodes(prev => prev.map(n =>
                             n.id === selectedNode ? { ...n, height: Number(e.target.value) } : n
                           ))}
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                          className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Fill</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Fill</label>
                         <input
                           type="color"
                           value={node.color}
@@ -3493,7 +3534,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Border</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Border</label>
                         <input
                           type="color"
                           value={node.borderColor}
@@ -3505,7 +3546,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Text</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Text</label>
                         <input
                           type="color"
                           value={node.textColor}
@@ -3518,13 +3559,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-white/90 mb-1">Shape</label>
+                      <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Shape</label>
                       <select
                         value={node.shape}
                         onChange={(e) => setNodes(prev => prev.map(n =>
                           n.id === selectedNode ? { ...n, shape: e.target.value as 'rectangle' | 'rounded' | 'circle' | 'diamond' } : n
                         ))}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                        className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                       >
                         <option value="rectangle">Rectangle</option>
                         <option value="rounded">Rounded Rectangle</option>
@@ -3535,7 +3576,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Font Size</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Font Size</label>
                         <input
                           type="range"
                           min="10"
@@ -3590,33 +3631,37 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 return (
                   <>
-                    <div className="flex items-center justify-between sticky top-0 bg-gradient-to-b from-gray-900 to-gray-900/80 backdrop-blur-sm pb-2 z-10">
-                      <h3 className="text-sm font-bold text-white drop-shadow-md">Edge Properties</h3>
+                    <div className={`flex items-center justify-between sticky top-0 backdrop-blur-sm pb-2 z-10 ${
+                      isDark
+                        ? 'bg-gradient-to-b from-gray-900 to-gray-900/80'
+                        : 'bg-gradient-to-b from-white to-white/80'
+                    }`}>
+                      <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Edge Properties</h3>
                       <button
                         onClick={() => setEdges(prev => prev.map(e =>
                           e.id === selectedEdge ? { ...e, isVisible: !e.isVisible } : e
                         ))}
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-white"
+                        className={`p-2 rounded-lg transition-all ${getThemeStyles().hoverBg} ${getThemeStyles().text}`}
                       >
                         {edge.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-white/90 mb-1">Label</label>
+                      <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Label</label>
                       <input
                         type="text"
                         value={edge.label}
                         onChange={(e) => setEdges(prev => prev.map(ed =>
                           ed.id === selectedEdge ? { ...ed, label: e.target.value } : ed
                         ))}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                        className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Color</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Color</label>
                         <input
                           type="color"
                           value={edge.color}
@@ -3628,13 +3673,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Style</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Style</label>
                         <select
                           value={edge.style}
                           onChange={(e) => setEdges(prev => prev.map(ed =>
                             ed.id === selectedEdge ? { ...ed, style: e.target.value as 'solid' | 'dashed' | 'dotted' } : ed
                           ))}
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                          className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                         >
                           <option value="solid">Solid</option>
                           <option value="dashed">Dashed</option>
@@ -3645,7 +3690,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Width</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Width</label>
                         <input
                           type="range"
                           min="1"
@@ -3656,11 +3701,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-white/70 font-medium">{edge.width}px</span>
+                        <span className={`text-xs ${getThemeStyles().textMuted} font-medium`}>{edge.width}px</span>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Curvature</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Curvature</label>
                         <input
                           type="range"
                           min="0"
@@ -3672,11 +3717,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-white/70 font-medium">{edge.curvature}</span>
+                        <span className={`text-xs ${getThemeStyles().textMuted} font-medium`}>{edge.curvature}</span>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-white/90 mb-1">Arrow Size</label>
+                        <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Arrow Size</label>
                         <input
                           type="range"
                           min="10"
@@ -3687,7 +3732,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-white/70 font-medium">{edge.arrowSize}px</span>
+                        <span className={`text-xs ${getThemeStyles().textMuted} font-medium`}>{edge.arrowSize}px</span>
                       </div>
                     </div>
                   </>
@@ -3699,13 +3744,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'groups' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white drop-shadow-md">Node Groups</h3>
-                <div className="text-xs text-white/70 font-medium">{groups.length} groups</div>
+                <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Node Groups</h3>
+                <div className={`text-xs font-medium ${getThemeStyles().textMuted}`}>{groups.length} groups</div>
               </div>
 
               {selectedNodes.size >= 2 && (
                 <div className="p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-teal-400/30 rounded-xl backdrop-blur-sm">
-                  <p className="text-sm text-white/90 mb-3 font-medium">
+                  <p className={`text-sm mb-3 font-medium ${getThemeStyles().textBold}`}>
                     {selectedNodes.size} nodes selected
                   </p>
                   <button
@@ -3720,10 +3765,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
               <div className="space-y-2">
                 {groups.length === 0 ? (
-                  <div className="text-center text-white/70 py-8">
+                  <div className={`text-center py-8 ${getThemeStyles().textMuted}`}>
                     <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">No groups created</p>
-                    <p className="text-xs text-white/60">Select multiple nodes and click &quot;Create Group&quot;</p>
+                    <p className={`text-xs ${getThemeStyles().textMuted}`}>Select multiple nodes and click &quot;Create Group&quot;</p>
                   </div>
                 ) : (
                   groups.map((group) => (
@@ -3732,7 +3777,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       className={`p-3 border rounded-xl cursor-pointer transition-all backdrop-blur-sm ${
                         selectedGroup === group.id
                           ? 'border-teal-400/50 bg-teal-500/20'
-                          : 'border-white/20 bg-white/5 hover:border-white/30'
+                          : `${getThemeStyles().border} ${getThemeStyles().background} ${getThemeStyles().borderHover}`
                       }`}
                       onClick={() => {
                         setSelectedGroup(group.id);
@@ -3746,13 +3791,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           className="w-3 h-3 rounded border"
                           style={{ backgroundColor: group.color }}
                         />
-                        <span className="text-sm font-semibold text-white drop-shadow-sm">{group.label}</span>
-                        <span className="text-xs text-white/70 ml-auto font-medium">
+                        <span className={`text-sm font-semibold drop-shadow-sm ${getThemeStyles().textBold}`}>{group.label}</span>
+                        <span className={`text-xs ml-auto font-medium ${getThemeStyles().textMuted}`}>
                           {group.nodeIds.length} nodes
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs text-white/70">
+                      <div className={`flex items-center gap-2 text-xs ${getThemeStyles().textMuted}`}>
                         <span>{Math.round(group.width)} × {Math.round(group.height)}</span>
                         {group.isCollapsed && <span className="text-orange-400">Collapsed</span>}
                       </div>
@@ -3794,46 +3839,46 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {activePanel === 'controls' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white drop-shadow-md">Keyboard Shortcuts</h3>
+                <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Keyboard Shortcuts</h3>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Canvas Navigation</h4>
+                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${getThemeStyles().textOnColor}`}>Canvas Navigation</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Pan canvas</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Click + drag</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Pan canvas</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Click + drag</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Zoom in/out</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Mouse wheel</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Zoom in/out</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Mouse wheel</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Reset view</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + 0</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Reset view</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + 0</kbd>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Node Operations</h4>
+                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${getThemeStyles().textOnColor}`}>Node Operations</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Duplicate selection</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + D</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Duplicate selection</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + D</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Delete selection</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Delete</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Delete selection</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Delete</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Group nodes</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + G</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Group nodes</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + G</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Multi-select</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + click</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Multi-select</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + click</kbd>
                     </div>
                   </div>
                 </div>
@@ -3842,16 +3887,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">File Operations</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Export JSON</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + S</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Export JSON</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + S</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Undo</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + Z</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Undo</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + Z</kbd>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Redo</span>
-                      <kbd className="px-2 py-1 bg-white/10 text-white/90 rounded-lg text-xs border border-white/20">Ctrl + Y</kbd>
+                      <span className={`${getThemeStyles().textSecondary}`}>Redo</span>
+                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + Y</kbd>
                     </div>
                   </div>
                 </div>
@@ -3860,16 +3905,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Mouse Controls</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Create connection</span>
-                      <span className="text-white/70 text-xs">Click node handles</span>
+                      <span className={`${getThemeStyles().textSecondary}`}>Create connection</span>
+                      <span className={`${getThemeStyles().textMuted} text-xs`}>Click node handles</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Add nodes</span>
-                      <span className="text-white/70 text-xs">Drag from sidebar</span>
+                      <span className={`${getThemeStyles().textSecondary}`}>Add nodes</span>
+                      <span className={`${getThemeStyles().textMuted} text-xs`}>Drag from sidebar</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/80">Move nodes</span>
-                      <span className="text-white/70 text-xs">Click and drag</span>
+                      <span className={`${getThemeStyles().textSecondary}`}>Move nodes</span>
+                      <span className={`${getThemeStyles().textMuted} text-xs`}>Click and drag</span>
                     </div>
                   </div>
                 </div>
@@ -3878,7 +3923,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               <div className="p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-teal-400/30 rounded-xl backdrop-blur-sm">
                 <div className="flex items-start gap-2">
                   <HelpCircle className="w-4 h-4 text-teal-300 flex-shrink-0 mt-0.5" />
-                  <div className="text-xs text-white/90">
+                  <div className={`text-xs ${getThemeStyles().textBold}`}>
                     <strong>Pro Tip:</strong> Press <kbd className="px-1 py-0.5 bg-teal-500/30 text-teal-300 rounded border border-teal-400/30 text-xs">?</kbd> or <kbd className="px-1 py-0.5 bg-teal-500/30 text-teal-300 rounded border border-teal-400/30 text-xs">F1</kbd> anytime to open the full help dialog with more detailed instructions.
                   </div>
                 </div>
@@ -3905,7 +3950,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 {/* Group Name */}
                 <div>
-                  <label className="block text-sm font-semibold text-white/90 mb-1">Group Name</label>
+                  <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Group Name</label>
                   <input
                     type="text"
                     value={group.label}
@@ -3914,13 +3959,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         g.id === selectedGroup ? { ...g, label: e.target.value } : g
                       ));
                     }}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                    className={`w-full px-3 py-2 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm`}
                   />
                 </div>
 
                 {/* Group Description */}
                 <div>
-                  <label className="block text-sm font-semibold text-white/90 mb-1">Description</label>
+                  <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Description</label>
                   <textarea
                     value={group.description || ''}
                     onChange={(e) => {
@@ -3930,14 +3975,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     }}
                     rows={3}
                     placeholder="Add a description for this group..."
-                    className="w-full px-3 py-2 bg-white/5 border border-white/20 text-white placeholder-white/50 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none backdrop-blur-sm"
+                    className={`w-full px-3 py-2 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none backdrop-blur-sm`}
                   />
                 </div>
 
                 {/* Colors */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-white/90 mb-1">Border Color</label>
+                    <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Border Color</label>
                     <input
                       type="color"
                       value={group.borderColor}
@@ -3950,7 +3995,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-white/90 mb-1">Text Color</label>
+                    <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Text Color</label>
                     <input
                       type="color"
                       value={group.color}
@@ -3966,7 +4011,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 {/* Background Color with Opacity */}
                 <div>
-                  <label className="block text-sm font-semibold text-white/90 mb-1">Background</label>
+                  <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Background</label>
                   <div className="flex gap-2">
                     <input
                       type="color"
@@ -4063,7 +4108,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 {/* Padding */}
                 <div>
-                  <label className="block text-sm font-semibold text-white/90 mb-1">
+                  <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>
                     Padding: {group.padding}px
                   </label>
                   <input
@@ -4083,7 +4128,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 {/* Position & Size */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-white/90 mb-1">X Position</label>
+                    <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>X Position</label>
                     <input
                       type="number"
                       value={Math.round(group.x)}
@@ -4092,11 +4137,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, x: parseInt(e.target.value) || 0 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                      className={`w-full px-2 py-1 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-white/90 mb-1">Y Position</label>
+                    <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Y Position</label>
                     <input
                       type="number"
                       value={Math.round(group.y)}
@@ -4105,11 +4150,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, y: parseInt(e.target.value) || 0 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                      className={`w-full px-2 py-1 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-white/90 mb-1">Width</label>
+                    <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Width</label>
                     <input
                       type="number"
                       value={Math.round(group.width)}
@@ -4118,11 +4163,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, width: parseInt(e.target.value) || 100 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                      className={`w-full px-2 py-1 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-white/90 mb-1">Height</label>
+                    <label className={`block text-sm font-semibold ${getThemeStyles().textBold} mb-1`}>Height</label>
                     <input
                       type="number"
                       value={Math.round(group.height)}
@@ -4131,14 +4176,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, height: parseInt(e.target.value) || 100 } : g
                         ));
                       }}
-                      className="w-full px-2 py-1 bg-white/5 border border-white/20 text-white rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm"
+                      className={`w-full px-2 py-1 ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent backdrop-blur-sm`}
                     />
                   </div>
                 </div>
 
                 {/* Group Info */}
                 <div className="p-3 bg-white/5 border border-white/20 rounded-xl backdrop-blur-sm">
-                  <div className="text-sm text-white/90 space-y-1">
+                  <div className={`text-sm ${getThemeStyles().textBold} space-y-1`}>
                     <p><strong className="text-teal-300">Nodes in group:</strong> {group.nodeIds.length}</p>
                     <p><strong className="text-teal-300">Status:</strong> {group.isCollapsed ? 'Collapsed' : 'Expanded'}</p>
                   </div>
@@ -4262,14 +4307,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Unified Toolbar */}
-        <div className="bg-gradient-to-r from-gray-900/95 via-slate-900/95 to-gray-900/95 backdrop-blur-xl border-b border-white/10 px-6 py-3 flex-shrink-0">
+        <div className={`backdrop-blur-xl border-b px-6 py-3 flex-shrink-0 ${
+          isDark
+            ? 'bg-gradient-to-r from-gray-900/95 via-slate-900/95 to-gray-900/95 border-white/10'
+            : 'bg-gradient-to-r from-white/95 via-gray-50/95 to-white/95 border-gray-200/80 shadow-lg'
+        }`}>
           <div className="flex items-center justify-between">
             {/* Left Side - Title */}
             <div className="flex-1 min-w-0 flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30">
                 <Layers className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-white drop-shadow-lg">Architecture Diagram</h1>
+              <h1 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Architecture Diagram</h1>
             </div>
 
             {/* Right Side - All Controls */}
@@ -4278,21 +4327,21 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'service')!, 100, 100)}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Add Service Node"
                 >
                   <Server className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'database')!, 150, 100)}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Add Database Node"
                 >
                   <Database className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'cloud')!, 200, 100)}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Add Cloud Service"
                 >
                   <Cloud className="w-4 h-4" />
@@ -4304,7 +4353,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={undo}
                   disabled={historyIndex <= 0}
-                  className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Undo (Ctrl+Z)"
                 >
                   <Undo className="w-4 h-4" />
@@ -4312,7 +4361,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={redo}
                   disabled={historyIndex >= history.length - 1}
-                  className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Redo (Ctrl+Y)"
                 >
                   <Redo className="w-4 h-4" />
@@ -4320,7 +4369,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={duplicateSelected}
                   disabled={!selectedNode && selectedNodes.size === 0}
-                  className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Duplicate Selection (Ctrl+D)"
                 >
                   <Plus className="w-4 h-4" />
@@ -4349,7 +4398,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   <button
                     onClick={() => setShowLayoutMenu(!showLayoutMenu)}
                     disabled={nodes.length === 0 || isLayouting}
-                    className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-white/80 hover:text-white hover:scale-110"
+                    className={`p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                     title="Auto Layout"
                   >
                     {isLayouting ? (
@@ -4362,45 +4411,45 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   {showLayoutMenu && (
                     <div className="absolute top-full left-0 mt-1 bg-gray-900/98 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/50 z-50 min-w-[180px]">
                       <div className="p-2">
-                        <div className="text-xs font-semibold text-white/70 mb-2 px-2">Layout Algorithms</div>
+                        <div className={`text-xs font-semibold ${getThemeStyles().textMuted} mb-2 px-2`}>Layout Algorithms</div>
                         <button
                           onClick={() => applyAutoLayout('horizontal')}
-                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <ArrowRight className="w-3 h-3" />
                           Horizontal Flow
                         </button>
                         <button
                           onClick={() => applyAutoLayout('vertical')}
-                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <ArrowRight className="w-3 h-3 rotate-90" />
                           Vertical Flow
                         </button>
                         <button
                           onClick={() => applyAutoLayout('tree')}
-                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <GitBranch className="w-3 h-3" />
                           Tree Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('radial')}
-                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <Radio className="w-3 h-3" />
                           Radial Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('force')}
-                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <Zap className="w-3 h-3" />
                           Force Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('compact')}
-                          className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all"
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <Layers className="w-3 h-3" />
                           Compact Layout
@@ -4415,26 +4464,26 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(3, prev.zoom * 1.2) }))}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Zoom In"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewport(prev => ({ ...prev, zoom: Math.max(0.1, prev.zoom * 0.8) }))}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Zoom Out"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Reset View (Ctrl+0)"
                 >
                   <Maximize className="w-4 h-4" />
                 </button>
-                <div className="text-xs text-white/70 font-medium px-2 min-w-[45px] text-center bg-white/5 rounded-lg py-1">
+                <div className={`text-xs ${getThemeStyles().textMuted} font-medium px-2 min-w-[45px] text-center bg-white/5 rounded-lg py-1`}>
                   {Math.round(viewport.zoom * 100)}%
                 </div>
               </div>
@@ -4467,6 +4516,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </button>
               </div>
 
+              {/* Theme Toggle */}
+              <div className="border-r border-white/20 pr-3">
+                <CanvasThemeToggle />
+              </div>
+
               {/* Export Dropdown */}
               <div className="relative">
                 <button
@@ -4497,30 +4551,30 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   >
                   <button
                     onClick={() => handleExport('png')}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
+                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as PNG
-                    <span className="ml-auto text-xs text-white/50">Ctrl+E</span>
+                    <span className={`ml-auto text-xs ${getThemeStyles().textMuted}`}>Ctrl+E</span>
                   </button>
                   <button
                     onClick={() => handleExport('svg')}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
+                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as SVG
-                    <span className="ml-auto text-xs text-white/50">Ctrl+Shift+E</span>
+                    <span className={`ml-auto text-xs ${getThemeStyles().textMuted}`}>Ctrl+Shift+E</span>
                   </button>
                   <button
                     onClick={() => handleExport('pdf')}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
+                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
                   >
                     <FileText className="w-4 h-4" />
                     Export as PDF
                   </button>
                   <button
                     onClick={() => handleExport('jpg')}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
+                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
                   >
                     <Image className="w-4 h-4" aria-hidden="true" />
                     Export as JPG
@@ -4528,20 +4582,20 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   <hr className="border-white/10" />
                   <button
                     onClick={() => setShowExportDialog(true)}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all"
+                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all`}
                   >
                     <Settings className="w-4 h-4" />
                     Export Options...
                   </button>
                   <button
                     onClick={exportAsJSON}
-                    className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white transition-all border-t border-white/10"
+                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all border-t border-white/10`}
                   >
                     <FileJson className="w-4 h-4" />
                     Export as JSON
-                    <span className="ml-auto text-xs text-white/50">Ctrl+J</span>
+                    <span className={`ml-auto text-xs ${getThemeStyles().textMuted}`}>Ctrl+J</span>
                   </button>
-                  <label className="w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm text-white/80 hover:text-white cursor-pointer border-t border-white/10 transition-all">
+                  <label className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white cursor-pointer border-t border-white/10 transition-all`}>
                     <Save className="w-4 h-4" />
                     Import JSON
                     <input
@@ -4559,7 +4613,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Performance Stats */}
               <button
                 onClick={() => setShowPerformanceStats(!showPerformanceStats)}
-                className={`p-2 rounded-lg transition-all ${showPerformanceStats ? 'bg-teal-500/20 text-teal-300 scale-110' : 'text-white/80 hover:bg-white/10 hover:text-white hover:scale-110'}`}
+                className={`p-2 rounded-lg transition-all ${
+                  showPerformanceStats
+                    ? 'bg-teal-500/20 text-teal-300 scale-110'
+                    : `${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'} hover:scale-110`
+                }`}
                 title="Toggle Performance Stats"
               >
                 <BarChart3 className="w-4 h-4" />
@@ -4568,7 +4626,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Help */}
               <button
                 onClick={() => setShowHelp(true)}
-                className="p-2 rounded-lg hover:bg-white/10 transition-all text-white/80 hover:text-white hover:scale-110"
+                className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                 title="Show Help (? key)"
               >
                 <HelpCircle className="w-4 h-4" />
@@ -4637,7 +4695,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           <p className="text-sm font-semibold text-white truncate">
                             {user?.displayName || 'User'}
                           </p>
-                          <p className="text-xs text-white/70 truncate">
+                          <p className={`text-xs ${getThemeStyles().textMuted} truncate`}>
                             {user?.email}
                           </p>
                         </div>
@@ -4651,7 +4709,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           // Navigate to dashboard
                           window.location.href = '/';
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all"
+                        className={`w-full text-left px-4 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all`}
                       >
                         <Square className="w-4 h-4" />
                         Dashboard
@@ -4662,7 +4720,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           setShowProfileMenu(false);
                           setShowKeyboardShortcuts(true);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all"
+                        className={`w-full text-left px-4 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white flex items-center gap-3 transition-all`}
                       >
                         <HelpCircle className="w-4 h-4" />
                         Help & Shortcuts
@@ -4702,7 +4760,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         <div className="flex-1 relative overflow-hidden">
           <canvas
             ref={canvasRef}
-            className={`absolute inset-0 w-full h-full bg-white ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+            className={`absolute inset-0 w-full h-full ${
+              isDark
+                ? 'bg-gray-900'
+                : 'bg-gradient-to-br from-gray-50 to-white shadow-inner'
+            } ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -5050,8 +5112,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
           {/* Save Dialog */}
           {showSaveDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className={`rounded-xl shadow-2xl max-w-md w-full mx-4 ${
+                isDark ? 'bg-gray-900' : 'bg-white border border-gray-200/80'
+              }`}>
                 <div className="p-6">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">Save Diagram</h2>
                   <form onSubmit={(e) => {
@@ -5112,8 +5176,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
           {/* Load Dialog */}
           {showLoadDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] mx-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className={`rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] mx-4 ${
+                isDark ? 'bg-gray-900' : 'bg-white border border-gray-200/80'
+              }`}>
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-gray-900">Load Diagram</h2>
@@ -5182,8 +5248,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
           {/* Templates Dialog */}
           {showTemplatesDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] mx-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className={`rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] mx-4 ${
+                isDark ? 'bg-gray-900' : 'bg-white border border-gray-200/80'
+              }`}>
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
