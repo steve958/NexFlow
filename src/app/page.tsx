@@ -5,14 +5,19 @@ import AuthGate from "@/components/AuthGate";
 import NewProjectModal from "@/components/NewProjectModal";
 import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
-import { signOut } from "firebase/auth";
-import { LogOut, Plus, Clock, Star, Folder, Search, Filter, Grid, List, Trash2, Copy, Layers } from "lucide-react";
+import { signOut, User } from "firebase/auth";
+import { LogOut, Plus, Clock, Star, Folder, Search, Filter, Grid, List, Trash2, Copy, Layers, User as UserIcon, Settings, Activity, BarChart3, Palette, Moon, Sun, Mail, MapPin, Calendar } from "lucide-react";
+import { CanvasThemeProvider } from "@/components/CanvasThemeProvider";
+import { useCanvasTheme } from "@/components/CanvasThemeProvider";
+import { CanvasThemeToggle } from "@/components/CanvasThemeToggle";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { getProjects, deleteProject, duplicateProject, getProjectStats, type Project } from "@/lib/projectStorage";
 
-export default function Home() {
+function Dashboard() {
+  const { isDark } = useCanvasTheme();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'projects' | 'profile' | 'activity'>('projects');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -87,517 +92,814 @@ export default function Home() {
   );
 
   return (
-    <AuthGate>
-      <div className="min-h-screen bg-gradient-to-br from-teal-900 via-blue-900 to-indigo-900 relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-teal-400/20 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-blue-400/20 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-indigo-400/20 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+    <div className={`min-h-screen flex ${
+      isDark
+        ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
+      {/* Left Sidebar - Navigation & Branding */}
+      <div className={`w-80 flex flex-col ${
+        isDark
+          ? 'bg-gradient-to-b from-slate-900 via-blue-900 to-indigo-900'
+          : 'bg-gradient-to-b from-white via-blue-50 to-indigo-100'
+      } border-r ${
+        isDark ? 'border-gray-700' : 'border-gray-200'
+      } shadow-xl relative`}>
+        {/* Theme Toggle */}
+        <div className="absolute top-6 right-6 z-20">
+          <CanvasThemeToggle />
         </div>
 
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
-
         {/* Header */}
-        <header className="relative z-10 bg-white/10 backdrop-blur-md border-b border-white/20">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-16 h-16">
-                  <Image
-                    src="/canvas-logo.png"
-                    alt="NexFlow Logo"
-                    width={64}
-                    height={64}
-                    className="w-full h-full object-contain rounded-xl drop-shadow-lg"
-                  />
+        <div className="p-8">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-16 h-16 relative">
+              <div className={`absolute inset-0 rounded-2xl blur-xl ${
+                isDark ? 'bg-blue-500/30' : 'bg-blue-400/40'
+              }`}></div>
+              <Image
+                src="/canvas-logo.png"
+                alt="NexFlow Logo"
+                width={64}
+                height={64}
+                className="w-full h-full object-contain rounded-2xl drop-shadow-2xl relative z-10"
+              />
+            </div>
+            <div>
+              <h1 className={`text-2xl font-bold ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                NexFlow
+              </h1>
+              <p className={`text-sm ${
+                isDark ? 'text-blue-200' : 'text-blue-600'
+              }`}>
+                Dashboard
+              </p>
+            </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <nav className="space-y-2">
+            {[
+              { id: 'projects', label: 'Projects', icon: Folder, count: projects.length },
+              { id: 'profile', label: 'Profile', icon: UserIcon },
+              { id: 'activity', label: 'Activity', icon: Activity },
+            ].map(({ id, label, icon: Icon, count }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id as 'projects' | 'profile' | 'activity')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
+                  activeTab === id
+                    ? isDark
+                      ? 'bg-blue-500/20 text-blue-300 shadow-lg'
+                      : 'bg-blue-100 text-blue-700 shadow-md'
+                    : isDark
+                      ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{label}</span>
+                {count !== undefined && (
+                  <span className={`ml-auto px-2 py-1 rounded-full text-xs font-semibold ${
+                    activeTab === id
+                      ? isDark
+                        ? 'bg-blue-400 text-blue-900'
+                        : 'bg-blue-200 text-blue-800'
+                      : isDark
+                        ? 'bg-gray-700 text-gray-300'
+                        : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="flex-1 p-8">
+          <div className={`p-6 rounded-2xl ${
+            isDark
+              ? 'bg-gradient-to-br from-gray-800/50 to-slate-800/50 border border-gray-700'
+              : 'bg-white/80 border border-gray-200 shadow-lg'
+          } backdrop-blur-sm`}>
+            <h3 className={`text-lg font-semibold mb-4 ${
+              isDark ? 'text-white' : 'text-gray-900'
+            }`}>
+              Quick Overview
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    isDark ? 'bg-blue-500/20' : 'bg-blue-100'
+                  }`}>
+                    <Folder className={`w-5 h-5 ${
+                      isDark ? 'text-blue-400' : 'text-blue-600'
+                    }`} />
+                  </div>
+                  <span className={`text-sm ${
+                    isDark ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Total Projects
+                  </span>
                 </div>
-                <h1 className="text-2xl font-bold text-white">NexFlow</h1>
+                <span className={`text-lg font-bold ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {projectStats.total}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'
+                  }`}>
+                    <BarChart3 className={`w-5 h-5 ${
+                      isDark ? 'text-indigo-400' : 'text-indigo-600'
+                    }`} />
+                  </div>
+                  <span className={`text-sm ${
+                    isDark ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Categories
+                  </span>
+                </div>
+                <span className={`text-lg font-bold ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {projectStats.categories}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sign Out Button */}
+        <div className="p-8">
+          <button
+            onClick={() => {
+              const auth = getFirebaseAuth();
+              if (auth) signOut(auth);
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              isDark
+                ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
+                : 'text-red-600 hover:text-red-700 hover:bg-red-100'
+            }`}
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Sign Out</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Right Side - Main Content */}
+      <div className="flex-1 flex flex-col min-h-screen">
+        {/* Content Area */}
+        <main className="flex-1 p-8">
+          {activeTab === 'projects' && (
+            <div className="h-full">
+              {/* Projects Header */}
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className={`text-3xl font-bold ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Welcome back!
+                  </h2>
+                  <p className={`text-lg mt-2 ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    Create, collaborate, and visualize your architecture
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <div className="w-2 h-2 bg-teal-400 rounded-full animate-pulse"></div>
-                  <span>All systems operational</span>
-                </div>
-                <button
-                  onClick={() => {
-                    const auth = getFirebaseAuth();
-                    if (auth) signOut(auth);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200"
+              {/* Quick Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <Link
+                  href="/app/demo"
+                  className={`p-6 rounded-2xl transition-all transform hover:scale-105 group shadow-xl hover:shadow-2xl ${
+                    isDark
+                      ? 'bg-gradient-to-br from-teal-500 to-blue-600 text-white hover:from-teal-600 hover:to-blue-700'
+                      : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700'
+                  }`}
                 >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
+                  <div className="flex items-center gap-3 mb-3">
+                    <Star className="w-8 h-8 group-hover:rotate-12 transition-transform" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Try Demo</h3>
+                      <p className="text-blue-100 text-sm">Interactive playground</p>
+                    </div>
+                  </div>
+                  <p className="text-white text-sm">
+                    Explore NexFlow features with our interactive demo scene
+                  </p>
+                </Link>
+
+                <button
+                  onClick={handleNewProject}
+                  className={`p-6 rounded-2xl transition-all text-left group shadow-xl border-2 border-dashed ${
+                    isDark
+                      ? 'bg-gray-800/50 border-gray-600 hover:border-gray-500 hover:bg-gray-800/70'
+                      : 'bg-white/80 border-gray-300 hover:border-gray-400 hover:bg-white'
+                  } backdrop-blur-sm`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <Plus className={`w-8 h-8 group-hover:rotate-90 transition-all ${
+                      isDark ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900'
+                    }`} />
+                    <div>
+                      <h3 className={`text-lg font-semibold ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        New Project
+                      </h3>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Start from scratch
+                      </p>
+                    </div>
+                  </div>
+                  <p className={`text-sm transition-colors ${
+                    isDark ? 'text-gray-300 group-hover:text-white' : 'text-gray-700 group-hover:text-gray-900'
+                  }`}>
+                    Create a new architecture diagram
+                  </p>
+                </button>
+
+                <button
+                  onClick={handleUseTemplate}
+                  className={`p-6 rounded-2xl transition-all text-left group shadow-xl border ${
+                    isDark
+                      ? 'bg-gray-800/50 border-gray-600 hover:border-indigo-500/50 hover:bg-gray-800/70'
+                      : 'bg-white/80 border-gray-200 hover:border-indigo-400 hover:bg-white'
+                  } backdrop-blur-sm`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <Folder className={`w-8 h-8 transition-colors ${
+                      isDark ? 'text-gray-400 group-hover:text-indigo-400' : 'text-gray-600 group-hover:text-indigo-600'
+                    }`} />
+                    <div>
+                      <h3 className={`text-lg font-semibold ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Use Template
+                      </h3>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Quick start
+                      </p>
+                    </div>
+                  </div>
+                  <p className={`text-sm transition-colors ${
+                    isDark ? 'text-gray-300 group-hover:text-white' : 'text-gray-700 group-hover:text-gray-900'
+                  }`}>
+                    Browse pre-built architecture patterns
+                  </p>
                 </button>
               </div>
-            </div>
-          </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="relative z-10 max-w-7xl mx-auto px-6 py-8">
-          {/* Welcome Section */}
-          <div className="mb-8">
-            <h2 className="text-4xl font-bold text-white drop-shadow-lg mb-2">Welcome back!</h2>
-            <p className="text-white/90 text-lg drop-shadow-md">Create, collaborate, and visualize your system architecture.</p>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Link
-              href="/app/demo"
-              className="p-6 bg-gradient-to-br from-teal-500 to-blue-600 text-white rounded-2xl hover:from-teal-600 hover:to-blue-700 transition-all transform hover:scale-105 group shadow-xl hover:shadow-2xl"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <Star className="w-8 h-8 group-hover:rotate-12 transition-transform" />
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Try Demo</h3>
-                  <p className="text-teal-50 text-sm">Interactive playground</p>
-                </div>
-              </div>
-              <p className="text-white text-sm">
-                Explore NexFlow features with our interactive demo scene
-              </p>
-            </Link>
-
-            <button
-              onClick={handleNewProject}
-              className="p-6 bg-white/10 backdrop-blur-md border-2 border-white/20 border-dashed rounded-2xl hover:border-white/40 hover:bg-white/15 transition-all text-left group shadow-xl"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <Plus className="w-8 h-8 text-white/70 group-hover:text-white group-hover:rotate-90 transition-all" />
-                <div>
-                  <h3 className="text-lg font-semibold text-white">New Project</h3>
-                  <p className="text-white/50 text-sm">Start from scratch</p>
-                </div>
-              </div>
-              <p className="text-white/80 text-sm group-hover:text-white transition-colors">
-                Create a new architecture diagram
-              </p>
-            </button>
-
-            <button
-              onClick={handleUseTemplate}
-              className="p-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl hover:border-indigo-400/50 hover:bg-white/15 transition-all text-left group shadow-xl"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <Folder className="w-8 h-8 text-white/70 group-hover:text-indigo-300 transition-colors" />
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Use Template</h3>
-                  <p className="text-white/50 text-sm">Quick start</p>
-                </div>
-              </div>
-              <p className="text-white/80 text-sm group-hover:text-white transition-colors">
-                Browse pre-built architecture patterns
-              </p>
-            </button>
-          </div>
-
-          {/* Projects Section */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 overflow-hidden shadow-2xl">
-            {/* Projects Header */}
-            <div className="p-6 border-b border-white/20">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-white drop-shadow-md">Recent Projects</h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      viewMode === 'grid' ? 'bg-teal-500/30 text-teal-300' : 'text-white/50 hover:text-white/80'
-                    }`}
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      viewMode === 'list' ? 'bg-teal-500/30 text-teal-300' : 'text-white/50 hover:text-white/80'
-                    }`}
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Search and Filter */}
-              <div className="flex items-center gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/40" />
-                  <input
-                    type="text"
-                    placeholder="Search projects..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-white placeholder-white/60"
-                  />
-                </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-lg hover:bg-white/15 transition-colors text-white">
-                  <Filter className="w-4 h-4" />
-                  Filter
-                </button>
-              </div>
-            </div>
-
-            {/* Projects Grid/List */}
-            <div className="p-6">
-              {viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProjects.map((project) => (
-                    <div key={project.id} className="group bg-gradient-to-br from-white/5 to-white/10 border border-white/20 rounded-2xl overflow-hidden hover:border-teal-400/60 hover:shadow-2xl hover:shadow-teal-500/20 transition-all duration-300 relative backdrop-blur-md hover:-translate-y-1">
-                      <Link
-                        href={project.isDemo ? "/app/demo" : `/app/${project.id}`}
-                        className="block"
+              {/* Projects Section */}
+              <div className={`rounded-3xl border shadow-2xl ${
+                isDark
+                  ? 'bg-gray-900/50 border-gray-700 backdrop-blur-xl'
+                  : 'bg-white/80 border-gray-200 backdrop-blur-sm'
+              }`}>
+                {/* Projects Header */}
+                <div className={`p-6 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200/50'}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-xl font-bold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      My Projects
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={`p-2 rounded-lg transition-colors ${
+                          viewMode === 'grid'
+                            ? isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+                            : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                        }`}
                       >
-                        <div className="aspect-video bg-gradient-to-br from-teal-600/20 via-blue-600/20 to-indigo-600/20 flex items-center justify-center relative overflow-hidden group/preview">
-                          {/* Animated gradient background */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-blue-500/10 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-500"></div>
+                        <Grid className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`p-2 rounded-lg transition-colors ${
+                          viewMode === 'list'
+                            ? isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+                            : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        <List className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
 
-                          {/* Grid background pattern */}
-                          <div className="absolute inset-0 opacity-30 group-hover/preview:opacity-40 transition-opacity duration-300" style={{
-                            backgroundImage: 'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)',
-                            backgroundSize: '24px 24px'
-                          }}></div>
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                    <input
+                      type="text"
+                      placeholder="Search projects..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-colors ${
+                        isDark
+                          ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                      } focus:ring-2 focus:ring-blue-500/20`}
+                    />
+                  </div>
+                </div>
 
-                          {/* Mini canvas preview */}
-                          {project.data?.nodes && project.data.nodes.length > 0 ? (
-                            <svg className="w-full h-full relative z-10 transition-all duration-700 ease-out" viewBox="0 0 400 225" preserveAspectRatio="xMidYMid meet">
-                              {/* Enhanced glow effect definitions */}
-                              <defs>
-                                <filter id={`glow-${project.id}`} x="-50%" y="-50%" width="200%" height="200%">
-                                  <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                                  <feMerge>
-                                    <feMergeNode in="coloredBlur"/>
-                                    <feMergeNode in="SourceGraphic"/>
-                                  </feMerge>
-                                </filter>
-                                <linearGradient id={`nodeGrad-${project.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                                  <stop offset="0%" stopColor="rgba(255,255,255,0.3)" />
-                                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                                </linearGradient>
-                              </defs>
-
-                              {/* Draw edges first (behind nodes) */}
-                              {project.data?.edges?.slice(0, 10).map((edge: { id: string; sourceId: string; targetId: string }, idx: number) => {
-                                const sourceNode = project.data?.nodes.find((n: { id: string; x: number; y: number; width: number; height: number }) => n.id === edge.sourceId);
-                                const targetNode = project.data?.nodes.find((n: { id: string; x: number; y: number; width: number; height: number }) => n.id === edge.targetId);
-                                if (!sourceNode || !targetNode) return null;
-
-                                const scale = 0.3;
-                                const x1 = (sourceNode.x + sourceNode.width / 2) * scale + 50;
-                                const y1 = (sourceNode.y + sourceNode.height / 2) * scale + 30;
-                                const x2 = (targetNode.x + targetNode.width / 2) * scale + 50;
-                                const y2 = (targetNode.y + targetNode.height / 2) * scale + 30;
-
-                                // Calculate control points for bezier curve
-                                const midX = (x1 + x2) / 2;
-                                const midY = (y1 + y2) / 2;
-                                const dx = x2 - x1;
-                                const dy = y2 - y1;
-                                const offsetX = -dy * 0.2;
-                                const offsetY = dx * 0.2;
-
-                                return (
-                                  <g key={`edge-${idx}`}>
-                                    {/* Edge glow shadow */}
-                                    <path
-                                      d={`M ${x1} ${y1} Q ${midX + offsetX} ${midY + offsetY} ${x2} ${y2}`}
-                                      stroke="rgba(20, 184, 166, 0.3)"
-                                      strokeWidth="4"
-                                      fill="none"
-                                      className="blur-sm"
-                                    />
-                                    {/* Main edge */}
-                                    <path
-                                      d={`M ${x1} ${y1} Q ${midX + offsetX} ${midY + offsetY} ${x2} ${y2}`}
-                                      stroke="rgba(45, 212, 191, 0.7)"
-                                      strokeWidth="2.5"
-                                      fill="none"
-                                      strokeDasharray="5,3"
-                                      className="group-hover/preview:stroke-teal-300 group-hover/preview:stroke-[3] transition-all duration-500"
-                                    />
-                                    {/* Arrow head */}
-                                    <circle cx={x2} cy={y2} r="3" fill="rgba(45, 212, 191, 0.8)" className="group-hover/preview:r-[4] transition-all" />
-                                  </g>
-                                );
-                              })}
-
-                              {/* Draw nodes */}
-                              {project.data?.nodes.slice(0, 8).map((node: { x?: number; y?: number; width?: number; height?: number; color?: string; borderColor?: string }, idx: number) => {
-                                const scale = 0.3;
-                                const x = (node.x || 0) * scale + 50;
-                                const y = (node.y || 0) * scale + 30;
-                                const w = (node.width || 100) * scale;
-                                const h = (node.height || 60) * scale;
-
-                                return (
-                                  <g key={idx} className="group/node">
-                                    {/* Node outer glow */}
-                                    <rect
-                                      x={x - 2}
-                                      y={y - 2}
-                                      width={w + 4}
-                                      height={h + 4}
-                                      rx="8"
-                                      fill={node.color || '#3b82f6'}
-                                      fillOpacity="0.2"
-                                      className="blur-sm group-hover/preview:fill-opacity-40 transition-all duration-500"
-                                    />
-                                    {/* Node background */}
-                                    <rect
-                                      x={x}
-                                      y={y}
-                                      width={w}
-                                      height={h}
-                                      rx="6"
-                                      fill={node.color || '#3b82f6'}
-                                      fillOpacity="0.85"
-                                      stroke={node.borderColor || '#1e40af'}
-                                      strokeWidth="2.5"
-                                      filter={`url(#glow-${project.id})`}
-                                      className="group-hover/preview:fill-opacity-100 group-hover/preview:stroke-[3] transition-all duration-500"
-                                    />
-                                    {/* Node gradient overlay */}
-                                    <rect
-                                      x={x}
-                                      y={y}
-                                      width={w}
-                                      height={h}
-                                      rx="6"
-                                      fill={`url(#nodeGrad-${project.id})`}
-                                    />
-                                    {/* Node shine effect */}
-                                    <rect
-                                      x={x + 2}
-                                      y={y + 2}
-                                      width={w - 4}
-                                      height={h * 0.35}
-                                      rx="4"
-                                      fill="rgba(255,255,255,0.25)"
-                                      className="group-hover/preview:fill-white/35 transition-all duration-300"
-                                    />
-                                  </g>
-                                );
-                              })}
-                            </svg>
-                          ) : (
-                            <div className="relative z-10 flex flex-col items-center gap-3">
-                              <div className="relative">
-                                <div className="absolute inset-0 bg-teal-400/20 blur-xl group-hover/preview:bg-teal-400/40 transition-all duration-500"></div>
-                                <Folder className="w-20 h-20 text-white/40 group-hover/preview:text-teal-300 transition-all duration-500 relative" />
+                {/* Projects Grid/List */}
+                <div className="p-6">
+                  {viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {filteredProjects.map((project) => (
+                        <div key={project.id} className={`group rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-all duration-300 relative backdrop-blur-md hover:-translate-y-1 ${
+                          isDark
+                            ? 'bg-gradient-to-br from-gray-800/50 to-gray-900/50 border-gray-700 hover:border-teal-400/60'
+                            : 'bg-white border-gray-200 hover:border-blue-300/60'
+                        }`}>
+                          <Link
+                            href={project.isDemo ? "/app/demo" : `/app/${project.id}`}
+                            className="block"
+                          >
+                            <div className={`aspect-video flex items-center justify-center relative overflow-hidden ${
+                              isDark ? 'bg-gradient-to-br from-teal-600/20 via-blue-600/20 to-indigo-600/20' : 'bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100'
+                            }`}>
+                              {/* Simple preview or placeholder */}
+                              <div className="relative z-10 flex flex-col items-center gap-3">
+                                <div className="relative">
+                                  <div className={`absolute inset-0 blur-xl ${isDark ? 'bg-blue-400/20' : 'bg-blue-400/40'}`}></div>
+                                  <Folder className={`w-16 h-16 relative ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                </div>
+                                <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {project.data?.nodes ? `${project.data.nodes.length} nodes` : 'Empty Project'}
+                                </span>
                               </div>
-                              <span className="text-xs text-white/50 group-hover/preview:text-white/70 transition-colors">Empty Project</span>
                             </div>
-                          )}
 
-                          {/* Stats overlay */}
-                          {project.data?.nodes && project.data.nodes.length > 0 && (
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-10">
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-4 text-white">
-                                  <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
-                                    <Layers className="w-3.5 h-3.5 text-teal-300" />
-                                    <span className="font-medium">{project.data.nodes.length}</span>
-                                  </div>
-                                  {project.data.edges && project.data.edges.length > 0 && (
-                                    <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
-                                      <svg className="w-3.5 h-3.5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                      </svg>
-                                      <span className="font-medium">{project.data.edges.length}</span>
-                                    </div>
-                                  )}
+                            <div className="p-5">
+                              <div className="flex items-start justify-between mb-3">
+                                <h4 className={`text-lg font-bold transition-colors duration-300 tracking-tight ${
+                                  isDark ? 'text-white group-hover:text-teal-200' : 'text-gray-900 group-hover:text-blue-600'
+                                }`}>
+                                  {project.name}
+                                </h4>
+                                {project.isDemo && (
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm ${
+                                    isDark ? 'bg-teal-500/40 text-teal-200 border-teal-400/30' : 'bg-blue-100 text-blue-700 border-blue-200'
+                                  }`}>
+                                    Demo
+                                  </span>
+                                )}
+                              </div>
+                              <p className={`text-sm mb-4 line-clamp-2 leading-relaxed ${
+                                isDark ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                {project.description}
+                              </p>
+                              <div className={`flex items-center justify-between text-xs ${
+                                isDark ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
+                                  isDark ? 'bg-gray-800' : 'bg-gray-100'
+                                }`}>
+                                  <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-teal-400' : 'text-blue-500'}`} />
+                                  <span className="font-medium">{formatLastModified(project.lastModified)}</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
+                                  isDark ? 'bg-gray-800' : 'bg-gray-100'
+                                }`}>
+                                  <Folder className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-indigo-500'}`} />
+                                  <span className="font-medium">{project.category}</span>
                                 </div>
                               </div>
+                              {project.tags.length > 0 && (
+                                <div className={`flex flex-wrap gap-1.5 mt-3 pt-3 border-t ${
+                                  isDark ? 'border-gray-700' : 'border-gray-200'
+                                }`}>
+                                  {project.tags.slice(0, 3).map((tag) => (
+                                    <span key={tag} className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                                      isDark
+                                        ? 'bg-gray-800 text-gray-300 border-gray-600 hover:border-teal-500/40'
+                                        : 'bg-gray-100 text-gray-700 border-gray-300 hover:border-blue-400/40'
+                                    }`}>
+                                      #{tag}
+                                    </span>
+                                  ))}
+                                  {project.tags.length > 3 && (
+                                    <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
+                                      isDark
+                                        ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
+                                        : 'bg-blue-100 text-blue-700 border border-blue-300'
+                                    }`}>
+                                      +{project.tags.length - 3}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </Link>
+
+                          {/* Project Actions */}
+                          {!project.isDemo && (
+                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100">
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleDuplicateProject(project.id);
+                                  }}
+                                  className={`p-2.5 rounded-lg shadow-lg border transition-all backdrop-blur-sm hover:scale-110 ${
+                                    isDark
+                                      ? 'bg-gray-800/90 hover:bg-blue-500/20 border-gray-600 hover:border-blue-400 text-gray-400 hover:text-blue-300'
+                                      : 'bg-white/95 hover:bg-blue-50 border-gray-300 hover:border-blue-400 text-gray-700 hover:text-blue-600'
+                                  }`}
+                                  title="Duplicate project"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleDeleteProject(project.id, project.name);
+                                  }}
+                                  className={`p-2.5 rounded-lg shadow-lg border transition-all backdrop-blur-sm hover:scale-110 ${
+                                    isDark
+                                      ? 'bg-gray-800/90 hover:bg-red-500/20 border-gray-600 hover:border-red-400 text-gray-400 hover:text-red-300'
+                                      : 'bg-white/95 hover:bg-red-50 border-gray-300 hover:border-red-400 text-gray-700 hover:text-red-600'
+                                  }`}
+                                  title="Delete project"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           )}
-
-                          {/* Hover overlay effect */}
-                          <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/0 via-blue-500/0 to-indigo-500/0 group-hover/preview:from-teal-500/20 group-hover/preview:via-blue-500/20 group-hover/preview:to-indigo-500/20 transition-all duration-700"></div>
-
-                          {/* Corner accent */}
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-teal-400/0 group-hover/preview:from-teal-400/30 transition-all duration-500 blur-2xl"></div>
                         </div>
-                        <div className="p-5 bg-gradient-to-b from-transparent to-black/10">
-                          <div className="flex items-start justify-between mb-3">
-                            <h4 className="text-lg font-bold text-white drop-shadow-md group-hover:text-teal-200 transition-colors duration-300 tracking-tight">
-                              {project.name}
-                            </h4>
-                            {project.isDemo && (
-                              <span className="px-3 py-1 bg-gradient-to-r from-teal-500/40 to-blue-500/40 text-teal-200 text-xs font-semibold rounded-full border border-teal-400/30 backdrop-blur-sm">Demo</span>
-                            )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredProjects.map((project) => (
+                        <Link
+                          key={project.id}
+                          href={project.isDemo ? "/app/demo" : `/app/${project.id}`}
+                          className={`flex items-center gap-4 p-4 border rounded-lg transition-all group ${
+                            isDark
+                              ? 'border-gray-700 hover:border-teal-400/60 hover:bg-gray-800/50'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                          }`}
+                        >
+                          <div className={`w-16 h-12 rounded flex items-center justify-center flex-shrink-0 ${
+                            isDark ? 'bg-gradient-to-br from-gray-800 to-gray-700' : 'bg-gradient-to-br from-gray-100 to-gray-200'
+                          }`}>
+                            <Folder className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                           </div>
-                          <p className="text-sm text-white/90 mb-4 line-clamp-2 leading-relaxed">{project.description}</p>
-                          <div className="flex items-center justify-between text-xs text-white/80">
-                            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md">
-                              <Clock className="w-3.5 h-3.5 text-teal-300" />
-                              <span className="font-medium">{formatLastModified(project.lastModified)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/10 rounded-md">
-                              <Folder className="w-3.5 h-3.5 text-blue-300" />
-                              <span className="font-medium">{project.category}</span>
-                            </div>
-                          </div>
-                          {project.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-white/10">
-                              {project.tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="px-2.5 py-1 bg-gradient-to-r from-white/15 to-white/10 text-white text-xs rounded-md border border-white/30 hover:border-teal-400/40 transition-colors font-medium">
-                                  #{tag}
-                                </span>
-                              ))}
-                              {project.tags.length > 3 && (
-                                <span className="px-2.5 py-1 bg-gradient-to-r from-teal-500/20 to-blue-500/20 text-teal-300 text-xs rounded-md border border-teal-400/30 font-semibold">
-                                  +{project.tags.length - 3}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className={`font-semibold transition-colors ${
+                                isDark ? 'text-white group-hover:text-teal-300' : 'text-gray-900 group-hover:text-blue-600'
+                              }`}>
+                                {project.name}
+                              </h4>
+                              {project.isDemo && (
+                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                  isDark ? 'bg-teal-500/20 text-teal-300' : 'bg-blue-100 text-blue-600'
+                                }`}>
+                                  Demo
                                 </span>
                               )}
                             </div>
-                          )}
-                        </div>
-                      </Link>
-
-                      {/* Project Actions */}
-                      {!project.isDemo && (
-                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100">
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handleDuplicateProject(project.id);
-                              }}
-                              className="p-2.5 bg-white/95 hover:bg-blue-50 rounded-lg shadow-lg border border-white/40 hover:border-blue-400 transition-all backdrop-blur-sm hover:scale-110"
-                              title="Duplicate project"
-                            >
-                              <Copy className="w-3.5 h-3.5 text-gray-700 hover:text-blue-600 transition-colors" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handleDeleteProject(project.id, project.name);
-                              }}
-                              className="p-2.5 bg-white/95 hover:bg-red-50 rounded-lg shadow-lg border border-white/40 hover:border-red-400 transition-all backdrop-blur-sm hover:scale-110"
-                              title="Delete project"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-gray-700 hover:text-red-600 transition-colors" />
-                            </button>
+                            <p className={`text-sm truncate ${
+                              isDark ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              {project.description}
+                            </p>
                           </div>
-                        </div>
-                      )}
+                          <div className={`flex items-center gap-6 text-xs ${
+                            isDark ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatLastModified(project.lastModified)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Folder className="w-3 h-3" />
+                              {project.category}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {filteredProjects.length === 0 && (
+                    <div className="text-center py-12">
+                      <Folder className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                      <h4 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        No projects found
+                      </h4>
+                      <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {searchQuery ? 'Try adjusting your search terms' : 'Create your first project to get started'}
+                      </p>
+                      <button
+                        onClick={handleNewProject}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          isDark
+                            ? 'bg-teal-600 text-white hover:bg-teal-700'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        New Project
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredProjects.map((project) => (
-                    <Link
-                      key={project.id}
-                      href={project.isDemo ? "/app/demo" : `/app/${project.id}`}
-                      className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all group"
-                    >
-                      <div className="w-16 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                        <Folder className="w-6 h-6 text-gray-400" />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'profile' && (
+            <div className="h-full max-w-4xl">
+              <div className="mb-8">
+                <h2 className={`text-3xl font-bold ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Profile Settings
+                </h2>
+                <p className={`text-lg mt-2 ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  Manage your account and preferences
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                {/* Profile Info */}
+                <div className={`xl:col-span-2 rounded-3xl border shadow-2xl ${
+                  isDark
+                    ? 'bg-gray-900/50 border-gray-700 backdrop-blur-xl'
+                    : 'bg-white/80 border-gray-200 backdrop-blur-sm'
+                }`}>
+                  <div className={`p-6 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200/50'}`}>
+                    <h3 className={`text-xl font-bold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Personal Information
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="flex items-center gap-6">
+                      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${
+                        isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        JD
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                            {project.name}
-                          </h4>
-                          {project.isDemo && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded-full">Demo</span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 truncate">{project.description}</p>
+                      <div>
+                        <h4 className={`text-2xl font-bold ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          John Developer
+                        </h4>
+                        <p className={`text-lg ${
+                          isDark ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          john.developer@example.com
+                        </p>
                       </div>
-                      <div className="flex items-center gap-6 text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatLastModified(project.lastModified)}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className={`block text-sm font-medium mb-2 ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          Display Name
+                        </label>
+                        <input
+                          type="text"
+                          value="John Developer"
+                          className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                            isDark
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                          } focus:ring-2 focus:ring-blue-500/20`}
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-sm font-medium mb-2 ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value="john.developer@example.com"
+                          className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                            isDark
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                          } focus:ring-2 focus:ring-blue-500/20`}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Bio
+                      </label>
+                      <textarea
+                        rows={4}
+                        placeholder="Tell us about yourself..."
+                        className={`w-full px-3 py-2 rounded-lg border transition-colors resize-none ${
+                          isDark
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                        } focus:ring-2 focus:ring-blue-500/20`}
+                      />
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                        isDark
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}>
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="space-y-6">
+                  <div className={`p-6 rounded-2xl ${
+                    isDark
+                      ? 'bg-gradient-to-br from-gray-800/50 to-slate-800/50 border border-gray-700'
+                      : 'bg-white/80 border border-gray-200 shadow-lg'
+                  } backdrop-blur-sm`}>
+                    <h4 className={`text-lg font-semibold mb-4 ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Account Stats
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Member since
+                        </span>
+                        <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          Jan 2024
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Total projects
+                        </span>
+                        <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {projectStats.total}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Last active
+                        </span>
+                        <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          Today
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`p-6 rounded-2xl ${
+                    isDark
+                      ? 'bg-gradient-to-br from-gray-800/50 to-slate-800/50 border border-gray-700'
+                      : 'bg-white/80 border border-gray-200 shadow-lg'
+                  } backdrop-blur-sm`}>
+                    <h4 className={`text-lg font-semibold mb-4 ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Preferences
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Theme
+                        </span>
+                        <CanvasThemeToggle />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Auto-save
+                        </span>
+                        <input type="checkbox" defaultChecked className="rounded" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'activity' && (
+            <div className="h-full max-w-4xl">
+              <div className="mb-8">
+                <h2 className={`text-3xl font-bold ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Recent Activity
+                </h2>
+                <p className={`text-lg mt-2 ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  Your latest actions and updates
+                </p>
+              </div>
+
+              <div className={`rounded-3xl border shadow-2xl ${
+                isDark
+                  ? 'bg-gray-900/50 border-gray-700 backdrop-blur-xl'
+                  : 'bg-white/80 border-gray-200 backdrop-blur-sm'
+              }`}>
+                <div className="p-6">
+                  <div className="space-y-6">
+                    {[
+                      { icon: Plus, action: 'Created new project', details: 'E-commerce Architecture', time: '2 hours ago' },
+                      { icon: Copy, action: 'Duplicated project', details: 'Microservices Template', time: '1 day ago' },
+                      { icon: Settings, action: 'Updated profile', details: 'Changed display name', time: '3 days ago' },
+                      { icon: Star, action: 'Tried demo', details: 'Interactive Demo Scene', time: '1 week ago' },
+                    ].map((item, index) => (
+                      <div key={index} className="flex items-start gap-4">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          isDark ? 'bg-blue-500/20' : 'bg-blue-100'
+                        }`}>
+                          <item.icon className={`w-5 h-5 ${
+                            isDark ? 'text-blue-400' : 'text-blue-600'
+                          }`} />
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Folder className="w-3 h-3" />
-                          {project.category}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {item.action}
+                            </span>
+                            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {item.details}
+                            </span>
+                          </div>
+                          <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            {item.time}
+                          </p>
                         </div>
                       </div>
-                    </Link>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              )}
-
-              {filteredProjects.length === 0 && (
-                <div className="text-center py-12">
-                  <Folder className="w-12 h-12 text-white/40 mx-auto mb-3" />
-                  <h4 className="text-lg font-medium text-white drop-shadow-md mb-2">No projects found</h4>
-                  <p className="text-white/80 mb-4">
-                    {searchQuery ? 'Try adjusting your search terms' : 'Create your first project to get started'}
-                  </p>
-                  <button className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium">
-                    New Project
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-teal-500/30 rounded-lg flex items-center justify-center">
-                  <Folder className="w-4 h-4 text-teal-300" />
-                </div>
-                <span className="text-2xl font-bold text-white">{projectStats.total}</span>
               </div>
-              <p className="text-sm text-white/90 font-medium">Total Projects</p>
             </div>
-
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-blue-500/30 rounded-lg flex items-center justify-center">
-                  <Star className="w-4 h-4 text-blue-300" />
-                </div>
-                <span className="text-2xl font-bold text-white">{projectStats.categories}</span>
-              </div>
-              <p className="text-sm text-white/90 font-medium">Categories</p>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-indigo-500/30 rounded-lg flex items-center justify-center">
-                  <Star className="w-4 h-4 text-indigo-300" />
-                </div>
-                <span className="text-2xl font-bold text-white">{projectStats.tags}</span>
-              </div>
-              <p className="text-sm text-white/90 font-medium">Unique Tags</p>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-purple-500/30 rounded-lg flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-purple-300" />
-                </div>
-                <span className="text-2xl font-bold text-white">
-                  {projectStats.lastModified ? formatLastModified(projectStats.lastModified.toISOString()) : 'None'}
-                </span>
-              </div>
-              <p className="text-sm text-white/90 font-medium">Last Activity</p>
-            </div>
-          </div>
+          )}
         </main>
-
-        {/* New Project Modal */}
-        <NewProjectModal
-          isOpen={isNewProjectModalOpen}
-          onClose={() => setIsNewProjectModalOpen(false)}
-          onProjectCreated={handleProjectCreated}
-        />
-
-        {/* Template Browser Modal */}
-        <TemplateBrowser
-          isOpen={isTemplateBrowserOpen}
-          onClose={() => setIsTemplateBrowserOpen(false)}
-          onTemplateSelected={handleTemplateSelected}
-        />
       </div>
-    </AuthGate>
+
+      {/* New Project Modal */}
+      <NewProjectModal
+        isOpen={isNewProjectModalOpen}
+        onClose={() => setIsNewProjectModalOpen(false)}
+        onProjectCreated={handleProjectCreated}
+      />
+
+      {/* Template Browser Modal */}
+      <TemplateBrowser
+        isOpen={isTemplateBrowserOpen}
+        onClose={() => setIsTemplateBrowserOpen(false)}
+        onTemplateSelected={handleTemplateSelected}
+      />
+    </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <CanvasThemeProvider>
+      <AuthGate>
+        <Dashboard />
+      </AuthGate>
+    </CanvasThemeProvider>
   );
 }
