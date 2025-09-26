@@ -370,6 +370,7 @@ interface ModernDiagramCanvasProps {
 const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const { isDark } = useCanvasTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const layoutButtonRef = useRef<HTMLButtonElement>(null);
 
   // Theme-aware style helpers - enhanced light mode with shadows and borders
   const getThemeStyles = () => ({
@@ -1531,10 +1532,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         }
       }
 
-      // Handle delete key
+      // Handle delete key (only when not focused on input/textarea)
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
-        deleteSelected();
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.contentEditable === 'true'
+        );
+
+        if (!isInputFocused) {
+          e.preventDefault();
+          deleteSelected();
+        }
       }
 
       // Handle help toggle
@@ -1778,52 +1788,64 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
 
-    // Icon area
-    const iconSize = 20;
-    const iconX = x + 12;
-    const iconY = y + 8;
+    // Icon area - positioned in front of type badge
+    const iconSize = 12;
+    const badgeHeight = 18;
+    const badgeY = y + 6;
+    const iconX = x + 8;
+    const iconY = badgeY + 3;
 
-    // Draw simple icon representation based on node type
+
+    // Improved node layout - ensure proper spacing
+    const typeTextSize = 8;
+    const labelTextSize = Math.min(fontSize, 12); // Cap at 12px for readability
+
+    // Node type badge (top section)
+    // Semi-transparent background for type badge
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(x + 4, badgeY, width - 8, badgeHeight);
+
+    // Draw icon in front of type badge
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
 
     switch (node.type) {
       case 'database':
         // Database cylinder
         ctx.beginPath();
-        ctx.ellipse(iconX + iconSize / 2, iconY + 4, iconSize / 2 - 2, 3, 0, 0, 2 * Math.PI);
+        ctx.ellipse(iconX + iconSize / 2, iconY + 2, iconSize / 2 - 2, 2, 0, 0, 2 * Math.PI);
         ctx.fill();
         ctx.beginPath();
-        ctx.rect(iconX + 2, iconY + 4, iconSize - 4, 12);
+        ctx.rect(iconX + 2, iconY + 2, iconSize - 4, 8);
         ctx.fill();
         ctx.beginPath();
-        ctx.ellipse(iconX + iconSize / 2, iconY + 16, iconSize / 2 - 2, 3, 0, 0, 2 * Math.PI);
+        ctx.ellipse(iconX + iconSize / 2, iconY + 10, iconSize / 2 - 2, 2, 0, 0, 2 * Math.PI);
         ctx.fill();
         break;
       case 'cloud':
-        // Cloud shape
+        // Cloud shape (smaller)
         ctx.beginPath();
-        ctx.arc(iconX + 6, iconY + 12, 4, 0, 2 * Math.PI);
-        ctx.arc(iconX + 10, iconY + 8, 5, 0, 2 * Math.PI);
-        ctx.arc(iconX + 14, iconY + 12, 4, 0, 2 * Math.PI);
+        ctx.arc(iconX + 3, iconY + 7, 2, 0, 2 * Math.PI);
+        ctx.arc(iconX + 6, iconY + 5, 3, 0, 2 * Math.PI);
+        ctx.arc(iconX + 9, iconY + 7, 2, 0, 2 * Math.PI);
         ctx.fill();
         break;
       case 'security':
-        // Shield
+        // Shield (smaller)
         ctx.beginPath();
-        ctx.moveTo(iconX + iconSize / 2, iconY + 2);
-        ctx.lineTo(iconX + iconSize - 2, iconY + 6);
-        ctx.lineTo(iconX + iconSize - 2, iconY + 12);
-        ctx.lineTo(iconX + iconSize / 2, iconY + 18);
-        ctx.lineTo(iconX + 2, iconY + 12);
-        ctx.lineTo(iconX + 2, iconY + 6);
+        ctx.moveTo(iconX + iconSize / 2, iconY + 1);
+        ctx.lineTo(iconX + iconSize - 2, iconY + 3);
+        ctx.lineTo(iconX + iconSize - 2, iconY + 8);
+        ctx.lineTo(iconX + iconSize / 2, iconY + 11);
+        ctx.lineTo(iconX + 2, iconY + 8);
+        ctx.lineTo(iconX + 2, iconY + 3);
         ctx.closePath();
         ctx.fill();
         break;
       case 'api':
       case 'gateway':
-        // Globe/network
+        // Globe/network (smaller)
         ctx.beginPath();
         ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, iconSize / 2 - 2, 0, 2 * Math.PI);
         ctx.stroke();
@@ -1835,323 +1857,29 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         ctx.stroke();
         break;
       case 'storage':
-        // Hard drive
-        ctx.fillRect(iconX + 2, iconY + 4, iconSize - 4, 12);
-        ctx.strokeRect(iconX + 2, iconY + 4, iconSize - 4, 12);
+        // Hard drive (smaller)
+        ctx.fillRect(iconX + 2, iconY + 3, iconSize - 4, 6);
+        ctx.strokeRect(iconX + 2, iconY + 3, iconSize - 4, 6);
         ctx.fillStyle = borderColor;
-        ctx.fillRect(iconX + 4, iconY + 12, iconSize - 8, 2);
-        break;
-      case 'compute':
-        // CPU
-        ctx.strokeRect(iconX + 4, iconY + 4, iconSize - 8, iconSize - 8);
-        ctx.strokeRect(iconX + 6, iconY + 6, iconSize - 12, iconSize - 12);
-        // CPU pins
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.moveTo(iconX + 2, iconY + 6 + i * 3);
-          ctx.lineTo(iconX + 4, iconY + 6 + i * 3);
-          ctx.moveTo(iconX + iconSize - 4, iconY + 6 + i * 3);
-          ctx.lineTo(iconX + iconSize - 2, iconY + 6 + i * 3);
-          ctx.stroke();
-        }
-        break;
-      case 'network':
-        // Network nodes
-        const nodePositions = [
-          [iconX + 4, iconY + 4],
-          [iconX + iconSize - 4, iconY + 4],
-          [iconX + iconSize / 2, iconY + iconSize - 4],
-          [iconX + 2, iconY + iconSize - 4],
-          [iconX + iconSize - 2, iconY + iconSize - 4]
-        ];
-        nodePositions.forEach(([nx, ny]) => {
-          ctx.beginPath();
-          ctx.arc(nx, ny, 2, 0, 2 * Math.PI);
-          ctx.fill();
-        });
-        // Connections
-        ctx.beginPath();
-        ctx.moveTo(nodePositions[0][0], nodePositions[0][1]);
-        ctx.lineTo(nodePositions[1][0], nodePositions[1][1]);
-        ctx.lineTo(nodePositions[2][0], nodePositions[2][1]);
-        ctx.lineTo(nodePositions[0][0], nodePositions[0][1]);
-        ctx.stroke();
-        break;
-      case 'frontend':
-        // Monitor
-        ctx.strokeRect(iconX + 2, iconY + 2, iconSize - 4, 12);
-        ctx.fillRect(iconX + iconSize / 2 - 1, iconY + 14, 2, 3);
-        ctx.fillRect(iconX + 4, iconY + 17, iconSize - 8, 2);
-        break;
-      case 'mobile':
-        // Phone
-        ctx.strokeRect(iconX + 6, iconY + 2, iconSize - 12, 16);
-        ctx.fillRect(iconX + 8, iconY + 15, iconSize - 16, 1);
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + 16, 1, 0, 2 * Math.PI);
-        ctx.fill();
-        break;
-      case 'cache':
-        // Cache layers
-        for (let i = 0; i < 3; i++) {
-          ctx.strokeRect(iconX + 2 + i, iconY + 2 + i * 2, iconSize - 4 - i * 2, 4);
-        }
-        break;
-      case 'auth':
-        // Lock
-        ctx.strokeRect(iconX + 6, iconY + 8, iconSize - 12, 10);
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + 6, 4, Math.PI, 0, true);
-        ctx.stroke();
-        ctx.fillRect(iconX + iconSize / 2 - 1, iconY + 12, 2, 2);
-        break;
-      case 'email':
-        // Envelope
-        ctx.strokeRect(iconX + 2, iconY + 6, iconSize - 4, 10);
-        ctx.beginPath();
-        ctx.moveTo(iconX + 2, iconY + 6);
-        ctx.lineTo(iconX + iconSize / 2, iconY + 12);
-        ctx.lineTo(iconX + iconSize - 2, iconY + 6);
-        ctx.stroke();
-        break;
-      case 'search':
-        // Magnifying glass
-        ctx.beginPath();
-        ctx.arc(iconX + 8, iconY + 8, 5, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(iconX + 12, iconY + 12);
-        ctx.lineTo(iconX + 16, iconY + 16);
-        ctx.stroke();
-        break;
-      case 'analytics':
-        // Bar chart
-        ctx.fillRect(iconX + 3, iconY + 12, 3, 6);
-        ctx.fillRect(iconX + 7, iconY + 8, 3, 10);
-        ctx.fillRect(iconX + 11, iconY + 6, 3, 12);
-        ctx.fillRect(iconX + 15, iconY + 10, 3, 8);
-        break;
-      case 'config':
-        // Gear
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 6, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 3, 0, 2 * Math.PI);
-        ctx.fill();
-        // Gear teeth
-        for (let i = 0; i < 8; i++) {
-          const angle = (i * Math.PI) / 4;
-          const x1 = iconX + iconSize / 2 + Math.cos(angle) * 5;
-          const y1 = iconY + iconSize / 2 + Math.sin(angle) * 5;
-          const x2 = iconX + iconSize / 2 + Math.cos(angle) * 8;
-          const y2 = iconY + iconSize / 2 + Math.sin(angle) * 8;
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
-        }
-        break;
-      case 'cicd':
-        // Git branch
-        ctx.beginPath();
-        ctx.arc(iconX + 4, iconY + 4, 2, 0, 2 * Math.PI);
-        ctx.arc(iconX + iconSize - 4, iconY + 4, 2, 0, 2 * Math.PI);
-        ctx.arc(iconX + iconSize / 2, iconY + iconSize - 4, 2, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(iconX + 6, iconY + 4);
-        ctx.lineTo(iconX + iconSize / 2 - 2, iconY + iconSize - 4);
-        ctx.moveTo(iconX + iconSize - 6, iconY + 4);
-        ctx.lineTo(iconX + iconSize / 2 + 2, iconY + iconSize - 4);
-        ctx.stroke();
-        break;
-      case 'docs':
-        // Document
-        ctx.strokeRect(iconX + 4, iconY + 2, iconSize - 8, 16);
-        ctx.beginPath();
-        ctx.moveTo(iconX + iconSize - 6, iconY + 2);
-        ctx.lineTo(iconX + iconSize - 6, iconY + 6);
-        ctx.lineTo(iconX + iconSize - 4, iconY + 6);
-        ctx.stroke();
-        // Lines
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.moveTo(iconX + 6, iconY + 8 + i * 2);
-          ctx.lineTo(iconX + iconSize - 8, iconY + 8 + i * 2);
-          ctx.stroke();
-        }
-        break;
-      case 'scheduler':
-        // Calendar
-        ctx.strokeRect(iconX + 3, iconY + 4, iconSize - 6, 14);
-        ctx.fillRect(iconX + 3, iconY + 4, iconSize - 6, 4);
-        // Calendar grid
-        for (let i = 1; i < 3; i++) {
-          ctx.beginPath();
-          ctx.moveTo(iconX + 3 + i * 4, iconY + 8);
-          ctx.lineTo(iconX + 3 + i * 4, iconY + 18);
-          ctx.stroke();
-        }
-        for (let i = 1; i < 3; i++) {
-          ctx.beginPath();
-          ctx.moveTo(iconX + 3, iconY + 8 + i * 3);
-          ctx.lineTo(iconX + iconSize - 3, iconY + 8 + i * 3);
-          ctx.stroke();
-        }
-        break;
-      case 'users':
-        // People
-        ctx.beginPath();
-        ctx.arc(iconX + 6, iconY + 6, 3, 0, 2 * Math.PI);
-        ctx.arc(iconX + 14, iconY + 6, 3, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.fillRect(iconX + 3, iconY + 12, 6, 6);
-        ctx.fillRect(iconX + 11, iconY + 12, 6, 6);
-        break;
-      case 'chat':
-        // Message bubble
-        ctx.beginPath();
-        ctx.roundRect(iconX + 2, iconY + 4, iconSize - 4, 10, 3);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(iconX + 6, iconY + 14);
-        ctx.lineTo(iconX + 4, iconY + 18);
-        ctx.lineTo(iconX + 8, iconY + 14);
-        ctx.fill();
-        break;
-      case 'workflow':
-        // Flow diagram
-        ctx.strokeRect(iconX + 2, iconY + 2, 6, 4);
-        ctx.strokeRect(iconX + 12, iconY + 14, 6, 4);
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 3, 0, 2 * Math.PI);
-        ctx.stroke();
-        // Arrows
-        ctx.beginPath();
-        ctx.moveTo(iconX + 8, iconY + 4);
-        ctx.lineTo(iconX + iconSize / 2 - 3, iconY + iconSize / 2);
-        ctx.moveTo(iconX + iconSize / 2 + 3, iconY + iconSize / 2);
-        ctx.lineTo(iconX + 12, iconY + 16);
-        ctx.stroke();
-        break;
-      case 'container':
-        // Docker container
-        ctx.strokeRect(iconX + 2, iconY + 4, iconSize - 4, 12);
-        // Container layers
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.moveTo(iconX + 2, iconY + 6 + i * 3);
-          ctx.lineTo(iconX + iconSize - 2, iconY + 6 + i * 3);
-          ctx.stroke();
-        }
-        break;
-      case 'router':
-        // Router/proxy
-        ctx.strokeRect(iconX + 6, iconY + 6, 8, 8);
-        // Antenna lines
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.moveTo(iconX + 2, iconY + 8 + i * 2);
-          ctx.lineTo(iconX + 6, iconY + 8 + i * 2);
-          ctx.moveTo(iconX + 14, iconY + 8 + i * 2);
-          ctx.lineTo(iconX + 18, iconY + 8 + i * 2);
-          ctx.stroke();
-        }
-        break;
-      case 'streaming':
-        // Radio waves
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 2, 0, 2 * Math.PI);
-        ctx.fill();
-        for (let i = 1; i <= 3; i++) {
-          ctx.beginPath();
-          ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 2 + i * 3, 0, Math.PI);
-          ctx.stroke();
-        }
-        break;
-      case 'timer':
-        // Clock
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, 8, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(iconX + iconSize / 2, iconY + iconSize / 2);
-        ctx.lineTo(iconX + iconSize / 2, iconY + 6);
-        ctx.moveTo(iconX + iconSize / 2, iconY + iconSize / 2);
-        ctx.lineTo(iconX + iconSize / 2 + 4, iconY + iconSize / 2);
-        ctx.stroke();
-        break;
-      case 'notification':
-        // Bell
-        ctx.beginPath();
-        ctx.moveTo(iconX + 6, iconY + 6);
-        ctx.lineTo(iconX + 6, iconY + 8);
-        ctx.lineTo(iconX + 4, iconY + 14);
-        ctx.lineTo(iconX + 16, iconY + 14);
-        ctx.lineTo(iconX + 14, iconY + 8);
-        ctx.lineTo(iconX + 14, iconY + 6);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize / 2, iconY + 16, 2, 0, Math.PI);
-        ctx.stroke();
-        break;
-      case 'secrets':
-        // Key
-        ctx.beginPath();
-        ctx.arc(iconX + 6, iconY + 6, 4, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.strokeRect(iconX + 10, iconY + 8, 8, 2);
-        ctx.strokeRect(iconX + 16, iconY + 6, 2, 2);
-        ctx.strokeRect(iconX + 16, iconY + 10, 2, 2);
-        break;
-      case 'code':
-        // Code brackets
-        ctx.beginPath();
-        ctx.moveTo(iconX + 6, iconY + 4);
-        ctx.lineTo(iconX + 2, iconY + 8);
-        ctx.lineTo(iconX + 2, iconY + 12);
-        ctx.lineTo(iconX + 6, iconY + 16);
-        ctx.moveTo(iconX + 14, iconY + 4);
-        ctx.lineTo(iconX + 18, iconY + 8);
-        ctx.lineTo(iconX + 18, iconY + 12);
-        ctx.lineTo(iconX + 14, iconY + 16);
-        ctx.stroke();
+        ctx.fillRect(iconX + 3, iconY + 7, iconSize - 6, 1);
         break;
       default:
-        // Server/service (default)
+        // Server/service (default - smaller)
         ctx.strokeRect(iconX + 2, iconY + 2, iconSize - 4, iconSize - 4);
-        for (let i = 0; i < 3; i++) {
-          ctx.fillRect(iconX + 4, iconY + 5 + i * 3, iconSize - 8, 1);
+        for (let i = 0; i < 2; i++) {
+          ctx.fillRect(iconX + 3, iconY + 4 + i * 2, iconSize - 6, 1);
         }
         ctx.beginPath();
-        ctx.arc(iconX + iconSize - 5, iconY + 6, 1, 0, 2 * Math.PI);
+        ctx.arc(iconX + iconSize - 3, iconY + 4, 1, 0, 2 * Math.PI);
         ctx.fill();
     }
 
-    // Clear text shadow effects before drawing text
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-
-    // Improved node layout - ensure proper spacing
-    const typeTextSize = 8;
-    const labelTextSize = Math.min(fontSize, 12); // Cap at 12px for readability
-
-    // Node type badge (top section)
-    const badgeHeight = 18;
-    const badgeY = y + 6;
-
-    // Semi-transparent background for type badge
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    ctx.fillRect(x + 4, badgeY, width - 8, badgeHeight);
-
-    // Type text with better contrast
+    // Type text positioned after the icon
     ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.font = `600 ${typeTextSize}px Inter, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(node.type.toUpperCase(), x + width / 2, badgeY + 12);
+    ctx.textAlign = 'left';
+    const typeTextX = iconX + iconSize + 4; // Position text to the right of icon
+    ctx.fillText(node.type.toUpperCase(), typeTextX, badgeY + 12);
 
     // Main label (center section with better positioning)
     const labelY = y + height / 2 + 4; // Center vertically
@@ -4286,7 +4014,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Unified Toolbar */}
-        <div className={`backdrop-blur-xl border-b px-6 py-3 flex-shrink-0 ${
+        <div className={`backdrop-blur-xl border-b px-6 py-3 flex-shrink-0 relative z-[10000] ${
           isDark
             ? 'bg-gradient-to-r from-gray-900/95 via-slate-900/95 to-gray-900/95 border-white/10'
             : 'bg-gradient-to-r from-white/95 via-gray-50/95 to-white/95 border-gray-200/80 shadow-lg'
@@ -4373,8 +4101,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
               {/* Layout Controls */}
               <div className="flex items-center gap-1 border-r border-white/20 pr-3">
-                <div className="relative" data-layout-menu>
+                <div className="relative z-[10001]" data-layout-menu>
                   <button
+                    ref={layoutButtonRef}
                     onClick={() => setShowLayoutMenu(!showLayoutMenu)}
                     disabled={nodes.length === 0 || isLayouting}
                     className={`p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
@@ -4388,47 +4117,47 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </button>
 
                   {showLayoutMenu && (
-                    <div className="absolute top-full left-0 mt-1 bg-gray-900/98 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl shadow-black/50 z-50 min-w-[180px]">
+                    <div className={`absolute top-full left-0 mt-1 ${isDark ? 'bg-gray-900/90' : getThemeStyles().background} backdrop-blur-xl ${getThemeStyles().border} rounded-xl shadow-2xl ${isDark ? 'shadow-black/50' : 'shadow-gray-900/20'} min-w-[180px]`} style={{ zIndex: 10000 }}>
                       <div className="p-2">
                         <div className={`text-xs font-semibold ${getThemeStyles().textMuted} mb-2 px-2`}>Layout Algorithms</div>
                         <button
                           onClick={() => applyAutoLayout('horizontal')}
-                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} ${getThemeStyles().hoverBg} hover:${getThemeStyles().text} rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <ArrowRight className="w-3 h-3" />
                           Horizontal Flow
                         </button>
                         <button
                           onClick={() => applyAutoLayout('vertical')}
-                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} ${getThemeStyles().hoverBg} hover:${getThemeStyles().text} rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <ArrowRight className="w-3 h-3 rotate-90" />
                           Vertical Flow
                         </button>
                         <button
                           onClick={() => applyAutoLayout('tree')}
-                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} ${getThemeStyles().hoverBg} hover:${getThemeStyles().text} rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <GitBranch className="w-3 h-3" />
                           Tree Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('radial')}
-                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} ${getThemeStyles().hoverBg} hover:${getThemeStyles().text} rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <Radio className="w-3 h-3" />
                           Radial Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('force')}
-                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} ${getThemeStyles().hoverBg} hover:${getThemeStyles().text} rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <Zap className="w-3 h-3" />
                           Force Layout
                         </button>
                         <button
                           onClick={() => applyAutoLayout('compact')}
-                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} hover:bg-white/10 hover:text-white rounded-lg flex items-center gap-2 transition-all`}
+                          className={`w-full text-left px-3 py-2 text-sm ${getThemeStyles().textSecondary} ${getThemeStyles().hoverBg} hover:${getThemeStyles().text} rounded-lg flex items-center gap-2 transition-all`}
                         >
                           <Layers className="w-3 h-3" />
                           Compact Layout
