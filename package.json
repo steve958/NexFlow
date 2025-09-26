@@ -14,6 +14,7 @@
     "firebase": "^12.3.0",
     "framer-motion": "^12.23.16",
     "gsap": "^3.13.0",
+    "jspdf": "^3.0.3",
     "lucide-react": "^0.544.0",
     "next": "15.5.3",
     "react": "19.1.0",

@@ -9,7 +9,7 @@ import { doc, setDoc, getDocs, collection, deleteDoc, query, where, orderBy } fr
 import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
-import { DiagramExporter } from '@/lib/exportUtils';
+import { DiagramExporter, downloadFile, convertPNGtoJPG } from '@/lib/exportUtils';
 import { useCanvasTheme } from './CanvasThemeProvider';
 import { CanvasThemeToggle } from './CanvasThemeToggle';
 
@@ -855,25 +855,39 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     const finalOptions = {
       ...otherOptions,
       theme: actualTheme,
+      background: actualTheme === 'dark' ? '#1f2937' : '#ffffff',
       viewport
     };
 
     try {
+      const timestamp = Date.now();
+      const baseFilename = `nexflow-diagram-${timestamp}`;
+
       switch (formatToUse) {
-        case 'svg':
-          await diagramExporter.exportAsSVG(finalOptions);
+        case 'svg': {
+          const svgData = await diagramExporter.exportAsSVG(finalOptions);
+          const blob = new Blob([svgData], { type: 'image/svg+xml' });
+          downloadFile(blob, `${baseFilename}.svg`);
           break;
-        case 'pdf':
-          await diagramExporter.exportAsPDF(finalOptions);
+        }
+        case 'pdf': {
+          const pdfBlob = await diagramExporter.exportAsPDF(finalOptions);
+          downloadFile(pdfBlob, `${baseFilename}.pdf`);
           break;
-        case 'jpg':
-          // JPG export not yet implemented, fallback to PNG
-          await diagramExporter.exportAsPNG(finalOptions);
+        }
+        case 'jpg': {
+          const pngBlob = await diagramExporter.exportAsPNG(finalOptions);
+          // Convert PNG to JPG with white background
+          const jpgBlob = await convertPNGtoJPG(pngBlob, finalOptions.quality || 0.9);
+          downloadFile(jpgBlob, `${baseFilename}.jpg`);
           break;
-        default:
-          await diagramExporter.exportAsPNG(finalOptions);
+        }
+        default: {
+          const pngBlob = await diagramExporter.exportAsPNG(finalOptions);
+          downloadFile(pngBlob, `${baseFilename}.png`);
+          break;
+        }
       }
-      // Download is handled by the exporter
     } catch (error) {
       console.error('Export failed:', error);
       alert('Export failed. Please try again.');
@@ -3030,7 +3044,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         }))}
                         className={`p-2 rounded-lg transition-all ${
                           config.enabled
-                            ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                            ? isDark
+                              ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                              : 'bg-green-500/10 text-green-600 hover:bg-green-500/20'
                             : `${getThemeStyles().hoverBg} ${getThemeStyles().textMuted}`
                         }`}
                       >
@@ -3294,11 +3310,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-gray-500">{node.fontSize}px</span>
+                        <span className={`text-xs ${getThemeStyles().textMuted}`}>{node.fontSize}px</span>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Border Width</label>
+                        <label className={`block text-xs font-medium mb-1 ${getThemeStyles().textBold}`}>Border Width</label>
                         <input
                           type="range"
                           min="0"
@@ -3309,11 +3325,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           ))}
                           className="w-full"
                         />
-                        <span className="text-xs text-gray-500">{node.borderWidth}px</span>
+                        <span className={`text-xs ${getThemeStyles().textMuted}`}>{node.borderWidth}px</span>
                       </div>
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm">
+                    <label className={`flex items-center gap-2 text-sm ${getThemeStyles().textBold}`}>
                       <input
                         type="checkbox"
                         checked={node.shadow}
@@ -4301,7 +4317,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </button>
                   <button
                     onClick={exportAsJSON}
-                    className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 text-sm ${getThemeStyles().textSecondary} hover:text-white transition-all border-t border-white/10`}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all border-t ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white border-white/10' : 'hover:bg-gray-100 hover:text-gray-900 border-gray-200/50'}`}
                   >
                     <FileJson className="w-4 h-4" />
                     Export as JSON
