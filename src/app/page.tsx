@@ -5,14 +5,15 @@ import AuthGate from "@/components/AuthGate";
 import NewProjectModal from "@/components/NewProjectModal";
 import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
-import { signOut, User } from "firebase/auth";
-import { LogOut, Plus, Clock, Star, Folder, Search, Filter, Grid, List, Trash2, Copy, Layers, User as UserIcon, Settings, Activity, BarChart3, Palette, Moon, Sun, Mail, MapPin, Calendar } from "lucide-react";
+import { signOut, User, onAuthStateChanged } from "firebase/auth";
+import { LogOut, Plus, Clock, Star, Folder, Search, Grid, List, Trash2, Copy, User as UserIcon, Settings, Activity, BarChart3 } from "lucide-react";
 import { CanvasThemeProvider } from "@/components/CanvasThemeProvider";
 import { useCanvasTheme } from "@/components/CanvasThemeProvider";
 import { CanvasThemeToggle } from "@/components/CanvasThemeToggle";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { getProjects, deleteProject, duplicateProject, getProjectStats, type Project } from "@/lib/projectStorage";
+import { createOrUpdateUserProfile, updateUserDisplayName, getUserStats, UserProfile, UserStats } from "@/lib/userStorage";
 
 function Dashboard() {
   const { isDark } = useCanvasTheme();
@@ -25,9 +26,47 @@ function Dashboard() {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [isTemplateBrowserOpen, setIsTemplateBrowserOpen] = useState(false);
 
+  // User state management
+  const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
   // Load projects from storage
   useEffect(() => {
     loadProjects();
+  }, []);
+
+  // Authentication and user profile loading
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+
+      if (currentUser) {
+        // Load or create user profile
+        try {
+          const profile = await createOrUpdateUserProfile(currentUser);
+          setUserProfile(profile);
+          setNewDisplayName(profile.displayName);
+
+          // Load user stats
+          const stats = await getUserStats(currentUser.uid);
+          setUserStats(stats);
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+        setUserStats(null);
+        setNewDisplayName('');
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const loadProjects = async () => {
@@ -93,6 +132,39 @@ function Dashboard() {
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
     return date.toLocaleDateString();
+  };
+
+  // Helper function to convert Firestore timestamp to string
+  const timestampToString = (timestamp: unknown): string => {
+    if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+      return (timestamp.toDate as () => Date)().toISOString();
+    }
+    return (timestamp as string) || new Date().toISOString();
+  };
+
+  const handleUpdateDisplayName = async () => {
+    if (!user || !newDisplayName.trim() || newDisplayName === userProfile?.displayName) {
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    try {
+      await updateUserDisplayName(user.uid, newDisplayName.trim());
+
+      // Update local state
+      if (userProfile) {
+        setUserProfile({
+          ...userProfile,
+          displayName: newDisplayName.trim()
+        });
+      }
+    } catch (error) {
+      console.error('Error updating display name:', error);
+      // Reset to original value on error
+      setNewDisplayName(userProfile?.displayName || '');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
   };
 
   const filteredProjects = projects.filter(project =>
@@ -678,18 +750,33 @@ function Dashboard() {
                       <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${
                         isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
                       }`}>
-                        JD
+                        {userProfile ?
+                          (userProfile.photoURL ? (
+                            <img
+                              src={userProfile.photoURL}
+                              alt={userProfile.displayName}
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            userProfile.displayName
+                              .split(' ')
+                              .map(name => name[0])
+                              .join('')
+                              .toUpperCase()
+                              .slice(0, 2)
+                          )) : 'U'
+                        }
                       </div>
                       <div>
                         <h4 className={`text-2xl font-bold ${
                           isDark ? 'text-white' : 'text-gray-900'
                         }`}>
-                          John Developer
+                          {userProfile?.displayName || 'Loading...'}
                         </h4>
                         <p className={`text-lg ${
                           isDark ? 'text-gray-400' : 'text-gray-600'
                         }`}>
-                          john.developer@example.com
+                          {userProfile?.email || 'Loading...'}
                         </p>
                       </div>
                     </div>
@@ -703,12 +790,14 @@ function Dashboard() {
                         </label>
                         <input
                           type="text"
-                          value="John Developer"
+                          value={newDisplayName}
+                          onChange={(e) => setNewDisplayName(e.target.value)}
+                          disabled={isUpdatingProfile}
                           className={`w-full px-3 py-2 rounded-lg border transition-colors ${
                             isDark
                               ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
                               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                          } focus:ring-2 focus:ring-blue-500/20`}
+                          } focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50`}
                         />
                       </div>
                       <div>
@@ -719,12 +808,13 @@ function Dashboard() {
                         </label>
                         <input
                           type="email"
-                          value="john.developer@example.com"
-                          className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                          value={userProfile?.email || ''}
+                          disabled
+                          className={`w-full px-3 py-2 rounded-lg border transition-colors opacity-60 cursor-not-allowed ${
                             isDark
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
-                              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                          } focus:ring-2 focus:ring-blue-500/20`}
+                              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400'
+                              : 'bg-gray-100 border-gray-300 text-gray-900 placeholder-gray-500'
+                          }`}
                         />
                       </div>
                     </div>
@@ -747,12 +837,16 @@ function Dashboard() {
                     </div>
 
                     <div className="flex justify-end">
-                      <button className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                        isDark
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}>
-                        Save Changes
+                      <button
+                        onClick={handleUpdateDisplayName}
+                        disabled={isUpdatingProfile || !newDisplayName.trim() || newDisplayName === userProfile?.displayName}
+                        className={`px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isDark
+                            ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600'
+                        }`}
+                      >
+                        {isUpdatingProfile ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
                   </div>
@@ -776,7 +870,13 @@ function Dashboard() {
                           Member since
                         </span>
                         <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          Jan 2024
+                          {userStats?.memberSince ?
+                            (typeof userStats.memberSince === 'string' ?
+                              userStats.memberSince :
+                              new Date(timestampToString(userStats.memberSince)).toLocaleDateString()
+                            ) :
+                            'September 2025'
+                          }
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -792,7 +892,13 @@ function Dashboard() {
                           Last active
                         </span>
                         <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          Today
+                          {userStats?.lastActive ?
+                            new Date(typeof userStats.lastActive === 'string' ?
+                              userStats.lastActive :
+                              timestampToString(userStats.lastActive)
+                            ).toLocaleDateString() :
+                            'Today'
+                          }
                         </span>
                       </div>
                     </div>

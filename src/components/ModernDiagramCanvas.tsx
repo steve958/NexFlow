@@ -6,6 +6,7 @@ import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDocs, collection, deleteDoc, query, where, orderBy } from 'firebase/firestore';
+import { getUserProfile, createOrUpdateUserProfile, updateUserDisplayName, getUserStats, UserProfile, UserStats } from '@/lib/userStorage';
 import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
@@ -548,6 +549,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
   const [customNodeTemplates, setCustomNodeTemplates] = useState<CustomNodeTemplate[]>([]);
 
+  // Profile settings state
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState('');
+
   // Auto-layout state
   const [isLayouting, setIsLayouting] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
@@ -1027,6 +1035,31 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     }
   }, [projectId, autoSaveToFirestore, showNotification]);
 
+  // Update user display name
+  const handleUpdateDisplayName = useCallback(async () => {
+    if (!user || !newDisplayName.trim() || newDisplayName === userProfile?.displayName) {
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    try {
+      await updateUserDisplayName(user.uid, newDisplayName.trim());
+
+      // Reload user profile to get updated data
+      const updatedProfile = await getUserProfile(user.uid);
+      if (updatedProfile) {
+        setUserProfile(updatedProfile);
+      }
+
+      showNotification('Display name updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating display name:', error);
+      showNotification('Failed to update display name. Please try again.', 'error');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  }, [user, newDisplayName, userProfile?.displayName, showNotification]);
+
   // Export as JSON
   const exportAsJSON = useCallback(() => {
     try {
@@ -1432,8 +1465,27 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     const auth = getFirebaseAuth();
     if (!auth) return;
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+
+      if (currentUser) {
+        // Load or create user profile
+        try {
+          const profile = await createOrUpdateUserProfile(currentUser);
+          setUserProfile(profile);
+          setNewDisplayName(profile.displayName);
+
+          // Load user stats
+          const stats = await getUserStats(currentUser.uid);
+          setUserStats(stats);
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+        setUserStats(null);
+        setNewDisplayName('');
+      }
     });
 
     return () => unsubscribe();
@@ -4565,6 +4617,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       <button
                         onClick={() => {
                           setShowProfileMenu(false);
+                          setShowProfileSettings(true);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
+                      >
+                        <Settings className="w-4 h-4" />
+                        Profile Settings
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
                           setShowKeyboardShortcuts(true);
                         }}
                         className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
@@ -5577,6 +5640,230 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   Save & Continue
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Settings Modal */}
+      {showProfileSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto ${
+            isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200/80'
+          }`}>
+            {/* Header */}
+            <div className={`p-6 border-b ${
+              isDark ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center">
+                    <Settings className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className={`text-xl font-semibold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>Profile Settings</h2>
+                    <p className={`text-sm ${
+                      isDark ? 'text-gray-300' : 'text-gray-600'
+                    }`}>Manage your account information</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowProfileSettings(false)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDark
+                      ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                      : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Profile Information */}
+              <div className={`p-4 rounded-lg ${
+                isDark ? 'bg-gray-800/50' : 'bg-gray-50'
+              }`}>
+                <div className="flex items-center gap-4 mb-4">
+                  {user?.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt="Profile"
+                      className="w-16 h-16 rounded-full ring-2 ring-teal-400/50"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white text-xl font-medium">
+                        {userProfile?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className={`text-lg font-semibold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {userProfile?.displayName || user?.displayName || 'User'}
+                    </h3>
+                    <p className={`text-sm ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {user?.email}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Display Name */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Display Name
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={newDisplayName}
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="Enter display name..."
+                    className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDark
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                    maxLength={50}
+                  />
+                  <button
+                    onClick={handleUpdateDisplayName}
+                    disabled={isUpdatingProfile || !newDisplayName.trim() || newDisplayName === userProfile?.displayName}
+                    className={`px-4 py-3 rounded-lg font-medium transition-colors ${
+                      isUpdatingProfile || !newDisplayName.trim() || newDisplayName === userProfile?.displayName
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    {isUpdatingProfile ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+                <p className={`text-xs mt-1 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  This name will be displayed in your projects and shared diagrams
+                </p>
+              </div>
+
+              {/* Email (Read-only) */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={user?.email || ''}
+                  readOnly
+                  className={`w-full px-4 py-3 border rounded-lg cursor-not-allowed opacity-75 ${
+                    isDark
+                      ? 'bg-gray-800/50 border-gray-600 text-gray-400'
+                      : 'bg-gray-100 border-gray-300 text-gray-600'
+                  }`}
+                />
+                <p className={`text-xs mt-1 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  Email address cannot be changed
+                </p>
+              </div>
+
+              {/* Account Statistics */}
+              {userStats && (
+                <div>
+                  <h3 className={`text-lg font-semibold mb-4 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Account Statistics
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className={`p-4 rounded-lg text-center ${
+                      isDark ? 'bg-gray-800/50' : 'bg-gray-50'
+                    }`}>
+                      <div className={`text-2xl font-bold ${
+                        isDark ? 'text-teal-400' : 'text-teal-600'
+                      }`}>
+                        {userStats.projectCount}
+                      </div>
+                      <div className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Projects
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-lg text-center ${
+                      isDark ? 'bg-gray-800/50' : 'bg-gray-50'
+                    }`}>
+                      <div className={`text-2xl font-bold ${
+                        isDark ? 'text-blue-400' : 'text-blue-600'
+                      }`}>
+                        {userStats.totalNodes}
+                      </div>
+                      <div className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Total Nodes
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-lg text-center ${
+                      isDark ? 'bg-gray-800/50' : 'bg-gray-50'
+                    }`}>
+                      <div className={`text-2xl font-bold ${
+                        isDark ? 'text-purple-400' : 'text-purple-600'
+                      }`}>
+                        {userStats.totalEdges}
+                      </div>
+                      <div className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Total Connections
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-lg text-center ${
+                      isDark ? 'bg-gray-800/50' : 'bg-gray-50'
+                    }`}>
+                      <div className={`text-sm font-semibold ${
+                        isDark ? 'text-green-400' : 'text-green-600'
+                      }`}>
+                        Member Since
+                      </div>
+                      <div className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {userStats.memberSince}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className={`p-6 border-t ${
+              isDark ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <button
+                onClick={() => setShowProfileSettings(false)}
+                className={`w-full px-4 py-3 rounded-lg font-medium transition-colors ${
+                  isDark
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                }`}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
