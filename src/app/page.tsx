@@ -30,10 +30,16 @@ function Dashboard() {
     loadProjects();
   }, []);
 
-  const loadProjects = () => {
-    const loadedProjects = getProjects();
-    setProjects(loadedProjects);
-    setProjectStats(getProjectStats());
+  const loadProjects = async () => {
+    try {
+      const loadedProjects = await getProjects();
+      setProjects(loadedProjects);
+      const stats = await getProjectStats();
+      setProjectStats(stats);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      setProjects([]);
+    }
   };
 
   const handleNewProject = () => {
@@ -56,18 +62,22 @@ function Dashboard() {
 
   const handleDeleteProject = async (projectId: string, projectName: string) => {
     if (confirm(`Are you sure you want to delete "${projectName}"? This action cannot be undone.`)) {
-      const success = deleteProject(projectId);
+      const success = await deleteProject(projectId);
       if (success) {
         loadProjects(); // Refresh project list
       }
     }
   };
 
-  const handleDuplicateProject = (projectId: string) => {
-    const duplicatedProject = duplicateProject(projectId);
-    if (duplicatedProject) {
-      loadProjects(); // Refresh project list
-      router.push(`/app/${duplicatedProject.id}`); // Navigate to duplicated project
+  const handleDuplicateProject = async (projectId: string) => {
+    try {
+      const duplicatedProject = await duplicateProject(projectId);
+      if (duplicatedProject) {
+        loadProjects(); // Refresh project list
+        router.push(`/app/${duplicatedProject.id}`); // Navigate to duplicated project
+      }
+    } catch (error) {
+      console.error('Error duplicating project:', error);
     }
   };
 

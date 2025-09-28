@@ -77,12 +77,16 @@ export default function TemplateBrowser({ isOpen, onClose, onTemplateSelected }:
       console.log('First template node:', template.data?.nodes?.[0]);
 
       // Create a new project using the template data
-      const newProject = createProject(
+      const newProject = await createProject(
         template.name,
         `Created from ${template.name} template`,
         template.category,
         [...template.tags, 'from-template']
       );
+
+      if (!newProject) {
+        throw new Error('Failed to create project from template');
+      }
 
       console.log('Created project:', newProject);
       console.log('New project data:', newProject.data);
@@ -141,7 +145,7 @@ export default function TemplateBrowser({ isOpen, onClose, onTemplateSelected }:
 
         // Save updated project data
         const { updateProject } = await import('@/lib/projectStorage');
-        const updatedProject = updateProject(newProject.id, { data: newProject.data });
+        const updatedProject = await updateProject(newProject.id, { data: newProject.data });
 
         console.log('Updated project with data:', newProject.data);
         console.log('Final nodes count:', newProject.data?.nodes?.length || 0);
@@ -149,7 +153,7 @@ export default function TemplateBrowser({ isOpen, onClose, onTemplateSelected }:
 
         // Double-check by retrieving the project again
         const { getProject } = await import('@/lib/projectStorage');
-        const savedProject = getProject(newProject.id);
+        const savedProject = await getProject(newProject.id);
         console.log('Retrieved saved project:', savedProject);
         console.log('Retrieved project nodes:', savedProject?.data?.nodes?.length || 0);
       }

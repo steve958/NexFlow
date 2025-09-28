@@ -40,12 +40,16 @@ export default function NewProjectModal({ isOpen, onClose, onProjectCreated }: N
         .map(tag => tag.trim())
         .filter(tag => tag.length > 0);
 
-      const newProject = createProject(
+      const newProject = await createProject(
         name.trim(),
         description.trim(),
         category,
         tagArray
       );
+
+      if (!newProject) {
+        throw new Error('Failed to create project');
+      }
 
       // Reset form
       setName("");

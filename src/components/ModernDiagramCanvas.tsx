@@ -1,11 +1,11 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight } from 'lucide-react';
+import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle } from 'lucide-react';
 import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, setDoc, getDocs, collection, deleteDoc, query, where, orderBy } from 'firebase/firestore';
+import { doc, getDocs, collection, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
@@ -408,24 +408,35 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   // User state - Firebase authentication
   const [user, setUser] = useState<User | null>(null);
 
+  // Project state
+  const [currentProjectName, setCurrentProjectName] = useState<string>('Architecture Diagram');
+
   // Groups state
   const [groups, setGroups] = useState<NodeGroup[]>([]);
 
   // Load project data when projectId changes
   useEffect(() => {
     if (projectId) {
-      try {
-        const projectsJson = localStorage.getItem('nexflow-projects');
+      const loadProject = async () => {
+        try {
+          // Handle demo project specially
+          if (projectId === 'demo') {
+            setCurrentProjectName('Demo Architecture');
+            setActivePanel('nodes');
+            return;
+          }
 
-        import('@/lib/projectStorage').then(({ getProject }) => {
-          const project = getProject(projectId);
+          const { getProject } = await import('@/lib/projectStorage');
+          const project = await getProject(projectId);
 
           if (project && project.data) {
+            // Set current project name
+            setCurrentProjectName(project.name || 'Architecture Diagram');
 
             // Load project data into the canvas
             if (project.data.nodes && Array.isArray(project.data.nodes) && project.data.nodes.length > 0) {
               // Ensure all nodes have required properties for rendering
-              const processedNodes = project.data.nodes.map((node: Record<string, unknown>) => ({
+              const processedNodes = project.data.nodes.map((node) => ({
                 ...node,
                 isVisible: true, // Ensure nodes are visible
                 fontSize: node.fontSize || 12,
@@ -441,7 +452,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
             if (project.data.edges && Array.isArray(project.data.edges)) {
               // Ensure all edges have required properties for rendering
-              const processedEdges = project.data.edges.map((edge: Record<string, unknown>) => ({
+              const processedEdges = project.data.edges.map((edge) => ({
                 ...edge,
                 isVisible: true, // KEY FIX: Ensure edges are visible
                 width: edge.width || 2,
@@ -461,17 +472,24 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             setActivePanel('nodes');
             // Reset viewport to ensure nodes are visible
             setViewport({ x: 0, y: 0, zoom: 1 });
+            // Mark as saved when project is loaded
+            setHasUnsavedChanges(false);
           } else {
             // If no project found, stay on templates panel
+            setCurrentProjectName('Architecture Diagram');
             setActivePanel('templates');
           }
-        });
-      } catch (error) {
-        console.error('Error loading project:', error);
-        setActivePanel('templates');
-      }
+        } catch (error) {
+          console.error('Error loading project:', error);
+          setCurrentProjectName('Architecture Diagram');
+          setActivePanel('templates');
+        }
+      };
+
+      loadProject();
     } else {
       // If no projectId, show templates by default
+      setCurrentProjectName('Architecture Diagram');
       setActivePanel('templates');
     }
   }, [projectId]);
@@ -521,8 +539,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [exportMenuPosition, setExportMenuPosition] = useState({ top: 0, right: 0 });
   const [profileMenuPosition, setProfileMenuPosition] = useState({ top: 0, right: 0 });
 
-  // Save/Load state
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  // Load state
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [savedDiagrams, setSavedDiagrams] = useState<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -534,6 +551,20 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   // Auto-layout state
   const [isLayouting, setIsLayouting] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+
+  // Notification state
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+    visible: boolean;
+  }>({ message: '', type: 'success', visible: false });
+
+  // Unsaved changes tracking
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const lastSaveTimeRef = useRef<number>(Date.now()); // Initialize to now to prevent initial unsaved marking
+  const saveToHistoryRef = useRef<(() => void) | undefined>(undefined);
 
   // Export state
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -639,6 +670,75 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [animationConfigs, setAnimationConfigs] = useState<Record<string, AnimationConfig>>({});
   const [allAnimationsRunning, setAllAnimationsRunning] = useState(false);
 
+  // Show notification function
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setNotification({ message, type, visible: true });
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, visible: false }));
+    }, 3000);
+  }, []);
+
+  // Handle actions that might require saving
+  const handleActionWithSaveCheck = useCallback((action: () => void) => {
+    if (hasUnsavedChanges && projectId && projectId !== 'demo') {
+      setPendingAction(() => action);
+      setShowUnsavedModal(true);
+    } else {
+      action();
+    }
+  }, [hasUnsavedChanges, projectId]);
+
+  // Save and continue with pending action
+  const saveAndContinue = useCallback(async () => {
+    if (projectId && projectId !== 'demo') {
+      try {
+        await autoSaveToFirestore();
+        lastSaveTimeRef.current = Date.now();
+        setHasUnsavedChanges(false);
+        showNotification('Project saved successfully!', 'success');
+      } catch (error) {
+        console.error('Error saving project:', error);
+        showNotification('Failed to save project. Please try again.', 'error');
+        setShowUnsavedModal(false);
+        return;
+      }
+    }
+
+    setShowUnsavedModal(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  }, [projectId, showNotification, pendingAction]);
+
+  // Don't save and continue with pending action
+  const discardChangesAndContinue = useCallback(() => {
+    setShowUnsavedModal(false);
+    setHasUnsavedChanges(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  }, [pendingAction]);
+
+  // Auto-save to Firestore
+  const autoSaveToFirestore = useCallback(async () => {
+    if (!projectId || projectId === 'demo') {
+      return; // Don't save demo project
+    }
+
+    try {
+      const { saveProjectData } = await import('@/lib/projectStorage');
+      await saveProjectData(projectId, {
+        nodes,
+        edges,
+        viewport
+      });
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+    }
+  }, [projectId, nodes, edges, viewport]);
+
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
     if (isUndoRedoRef.current) {
@@ -661,7 +761,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     });
 
     setHistoryIndex(prev => Math.min(prev + 1, 49));
+
+    // Mark as having unsaved changes (but not if we recently saved)
+    const timeSinceLastSave = Date.now() - lastSaveTimeRef.current;
+    if (timeSinceLastSave > 1000) { // Only mark as unsaved if more than 1 second has passed since last save
+      setHasUnsavedChanges(true);
+    }
   }, [nodes, edges, groups, animationConfigs, historyIndex]);
+
+  // Update ref to latest saveToHistory function
+  saveToHistoryRef.current = saveToHistory;
 
   // Undo functionality
   const undo = useCallback(() => {
@@ -900,28 +1009,53 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const exportAsSVG = useCallback(() => handleExport('svg'), [handleExport]);
 
+  // Direct save to Firestore
+  const saveProject = useCallback(async () => {
+    if (!projectId || projectId === 'demo') {
+      showNotification('Demo projects cannot be saved', 'info');
+      return;
+    }
+
+    try {
+      await autoSaveToFirestore();
+      lastSaveTimeRef.current = Date.now();
+      setHasUnsavedChanges(false);
+      showNotification('Project saved successfully!', 'success');
+    } catch (error) {
+      console.error('Error saving project:', error);
+      showNotification('Failed to save project. Please try again.', 'error');
+    }
+  }, [projectId, autoSaveToFirestore, showNotification]);
+
   // Export as JSON
   const exportAsJSON = useCallback(() => {
-    const data = {
-      nodes: nodes,
-      edges: edges,
-      animationConfigs: animationConfigs,
-      metadata: {
-        exportedAt: new Date().toISOString(),
-        version: '1.0.0'
-      }
-    };
+    try {
+      const data = {
+        nodes: nodes,
+        edges: edges,
+        animationConfigs: animationConfigs,
+        metadata: {
+          exportedAt: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `nexflow-diagram-${Date.now()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [nodes, edges, animationConfigs]);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `nexflow-diagram-${Date.now()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showNotification('Diagram exported as JSON successfully!', 'success');
+    } catch (error) {
+      console.error('Export failed:', error);
+      showNotification('Failed to export diagram. Please try again.', 'error');
+    }
+  }, [nodes, edges, animationConfigs, showNotification]);
 
   // Import from JSON
   const importFromJSON = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1106,49 +1240,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }, [nodes]);
 
   // Save/Load functions
-  const saveDiagram = useCallback(async (name: string, description: string = '') => {
-    if (!user) {
-      alert('Please sign in to save diagrams to the cloud');
-      return;
-    }
-
-    const db = getFirebaseDb();
-    if (!db) {
-      alert('Firebase not configured. Cannot save to cloud.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const diagramData = {
-        id: `diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        title: name,
-        description,
-        nodes,
-        edges,
-        groups,
-        animationConfigs,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        userId: user.uid,
-        userEmail: user.email
-      };
-
-      await setDoc(doc(db, 'diagrams', diagramData.id), diagramData);
-      loadSavedDiagramsRef.current(); // Refresh the list
-      alert('Diagram saved successfully!');
-      setShowSaveDialog(false);
-    } catch (error: unknown) {
-      console.error('Error saving diagram: ', error);
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
-        alert('Permission denied. Unable to save diagram.');
-      } else {
-        alert('Failed to save diagram');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, nodes, edges, groups, animationConfigs]);
 
   const loadSavedDiagrams = useCallback(async () => {
     if (!user) {
@@ -1511,7 +1602,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             break;
           case 's':
             e.preventDefault();
-            exportAsJSON();
+            saveProject();
             break;
           case 'd':
             e.preventDefault();
@@ -1584,7 +1675,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, exportAsJSON, handleExport, duplicateSelected, deleteSelected, createGroupFromSelected, selectedNodes.size]);
+  }, [undo, redo, saveProject, exportAsJSON, handleExport, duplicateSelected, deleteSelected, createGroupFromSelected, selectedNodes.size]);
 
   // Client-side initialization
   useEffect(() => {
@@ -1619,10 +1710,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   // Save to history when nodes, edges, or groups change
   useEffect(() => {
     if (history.length > 0) {
-      const timeoutId = setTimeout(saveToHistory, 300); // Debounce
+      const timeoutId = setTimeout(() => {
+        if (saveToHistoryRef.current) {
+          saveToHistoryRef.current();
+        }
+      }, 300); // Debounce
       return () => clearTimeout(timeoutId);
     }
-  }, [nodes, edges, groups, saveToHistory]);
+  }, [nodes, edges, groups]);
 
   const animationFrameRef = useRef<number>(0);
   const frameCountRef = useRef(0);
@@ -2863,7 +2958,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 className="w-full h-full object-contain rounded-xl relative drop-shadow-2xl"
               />
             </div>
-            <h2 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>NexFlow</h2>
+            <h2 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>NexFlow - Diagram</h2>
           </div>
 
           {/* Panel Tabs */}
@@ -4041,7 +4136,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30">
                 <Layers className="w-5 h-5 text-white" />
               </div>
-              <h1 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Architecture Diagram</h1>
+              <h1 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentProjectName}</h1>
             </div>
 
             {/* Right Side - All Controls */}
@@ -4215,11 +4310,27 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* File Operations */}
               <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
-                  onClick={() => setShowSaveDialog(true)}
-                  className="p-2 rounded-lg hover:bg-green-500/20 transition-all text-green-400 hover:text-green-300 hover:scale-110"
-                  title="Save Diagram to Cloud"
+                  onClick={saveProject}
+                  disabled={!projectId || projectId === 'demo'}
+                  className={`relative p-2 rounded-lg transition-all hover:scale-110 ${
+                    !projectId || projectId === 'demo'
+                      ? 'opacity-50 cursor-not-allowed text-gray-400'
+                      : hasUnsavedChanges
+                      ? 'hover:bg-orange-500/20 text-orange-400 hover:text-orange-300'
+                      : 'hover:bg-green-500/20 text-green-400 hover:text-green-300'
+                  }`}
+                  title={
+                    !projectId || projectId === 'demo'
+                      ? 'Cannot save demo project'
+                      : hasUnsavedChanges
+                      ? 'Save Project - You have unsaved changes (Ctrl+S)'
+                      : 'Save Project (Ctrl+S)'
+                  }
                 >
                   <Save className="w-4 h-4" />
+                  {hasUnsavedChanges && projectId && projectId !== 'demo' && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -4440,8 +4551,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       <button
                         onClick={() => {
                           setShowProfileMenu(false);
-                          // Navigate to dashboard
-                          window.location.href = '/';
+                          handleActionWithSaveCheck(() => {
+                            // Navigate to dashboard
+                            window.location.href = '/';
+                          });
                         }}
                         className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                       >
@@ -4463,17 +4576,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       <div className={`border-t my-1 ${isDark ? 'border-white/10' : 'border-gray-200/50'}`}></div>
 
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           setShowProfileMenu(false);
-                          const auth = getFirebaseAuth();
-                          if (auth) {
-                            try {
-                              await signOut(auth);
-                              window.location.href = '/';
-                            } catch (error) {
-                              console.error('Error signing out:', error);
+                          handleActionWithSaveCheck(async () => {
+                            const auth = getFirebaseAuth();
+                            if (auth) {
+                              try {
+                                await signOut(auth);
+                                window.location.href = '/';
+                              } catch (error) {
+                                console.error('Error signing out:', error);
+                              }
                             }
-                          }
+                          });
                         }}
                         className={`w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-all ${
                           isDark
@@ -4723,7 +4838,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         {[
                           { keys: ['Ctrl', 'Z'], desc: 'Undo action' },
                           { keys: ['Ctrl', 'Y'], desc: 'Redo action' },
-                          { keys: ['Ctrl', 'S'], desc: 'Export as JSON' },
+                          { keys: ['Ctrl', 'S'], desc: 'Save Project' },
                           { keys: ['Ctrl', 'D'], desc: 'Duplicate selection' },
                           { keys: ['Ctrl', 'G'], desc: 'Group selected nodes' },
                           { keys: ['Ctrl', '0'], desc: 'Reset zoom & pan' },
@@ -4848,82 +4963,27 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             </div>
           )}
 
-          {/* Save Dialog */}
-          {showSaveDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className={`rounded-xl shadow-2xl max-w-md w-full mx-4 ${
-                isDark ? 'bg-gray-900' : 'bg-white border border-gray-200/80'
-              }`}>
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Save Diagram</h2>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target as HTMLFormElement);
-                    const name = formData.get('name') as string;
-                    const description = formData.get('description') as string;
-                    if (name.trim()) {
-                      saveDiagram(name.trim(), description.trim());
-                    }
-                  }}>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Diagram Name *
-                        </label>
-                        <input
-                          type="text"
-                          name="name"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="My Architecture Diagram"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Description (optional)
-                        </label>
-                        <textarea
-                          name="description"
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Brief description of your diagram..."
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-3 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => setShowSaveDialog(false)}
-                        className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isLoading ? 'Saving...' : 'Save'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Load Dialog */}
           {showLoadDialog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
               <div className={`rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] mx-4 ${
-                isDark ? 'bg-gray-900' : 'bg-white border border-gray-200/80'
+                isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200/80'
               }`}>
-                <div className="p-6 border-b border-gray-200">
+                <div className={`p-6 border-b ${
+                  isDark ? 'border-gray-700' : 'border-gray-200'
+                }`}>
                   <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-gray-900">Load Diagram</h2>
+                    <h2 className={`text-xl font-semibold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>Load Diagram</h2>
                     <button
                       onClick={() => setShowLoadDialog(false)}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      className={`p-2 rounded-lg transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                          : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                      }`}
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -4932,26 +4992,44 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
                   {isLoading ? (
                     <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                      <p className="text-gray-600 mt-2">Loading diagrams...</p>
+                      <div className={`animate-spin rounded-full h-8 w-8 border-b-2 mx-auto ${
+                        isDark ? 'border-blue-400' : 'border-blue-600'
+                      }`}></div>
+                      <p className={`mt-2 ${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>Loading diagrams...</p>
                     </div>
                   ) : savedDiagrams.length === 0 ? (
                     <div className="text-center py-8">
-                      <FolderOpen className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-600">No saved diagrams found</p>
-                      <p className="text-sm text-gray-400">Create and save your first diagram!</p>
+                      <FolderOpen className={`w-12 h-12 mx-auto mb-4 ${
+                        isDark ? 'text-gray-500' : 'text-gray-400'
+                      }`} />
+                      <p className={`${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>No saved diagrams found</p>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-500' : 'text-gray-400'
+                      }`}>Create and save your first diagram!</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {savedDiagrams.map((diagram) => (
                         <div
                           key={diagram.id}
-                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                          className={`border rounded-lg p-4 transition-colors ${
+                            isDark
+                              ? 'border-gray-700 hover:border-blue-500 bg-gray-800/50'
+                              : 'border-gray-200 hover:border-blue-300 bg-white'
+                          }`}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <h3 className="font-medium text-gray-900">{diagram.title}</h3>
-                              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                              <h3 className={`font-medium ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                              }`}>{diagram.title}</h3>
+                              <div className={`flex items-center gap-4 mt-2 text-xs ${
+                                isDark ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
                                 <span>{diagram.nodes?.length || 0} nodes</span>
                                 <span>{diagram.edges?.length || 0} connections</span>
                                 <span>{diagram.groups?.length || 0} groups</span>
@@ -4963,13 +5041,21 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                             <div className="flex gap-2 ml-4">
                               <button
                                 onClick={() => loadDiagram(diagram.id)}
-                                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                                className={`px-3 py-1 text-sm rounded transition-colors ${
+                                  isDark
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                }`}
                               >
                                 Load
                               </button>
                               <button
                                 onClick={() => deleteDiagram(diagram.id)}
-                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                                className={`px-3 py-1 text-sm rounded transition-colors ${
+                                  isDark
+                                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                                    : 'bg-red-600 hover:bg-red-700 text-white'
+                                }`}
                               >
                                 Delete
                               </button>
@@ -4988,17 +5074,27 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           {showTemplatesDialog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
               <div className={`rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] mx-4 ${
-                isDark ? 'bg-gray-900' : 'bg-white border border-gray-200/80'
+                isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200/80'
               }`}>
-                <div className="p-6 border-b border-gray-200">
+                <div className={`p-6 border-b ${
+                  isDark ? 'border-gray-700' : 'border-gray-200'
+                }`}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900">Diagram Templates</h2>
-                      <p className="text-sm text-gray-600">Start with a pre-built architecture pattern</p>
+                      <h2 className={`text-xl font-semibold ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>Diagram Templates</h2>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>Start with a pre-built architecture pattern</p>
                     </div>
                     <button
                       onClick={() => setShowTemplatesDialog(false)}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      className={`p-2 rounded-lg transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                          : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                      }`}
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -5009,20 +5105,40 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     {DIAGRAM_TEMPLATES.map((template) => (
                       <div
                         key={template.id}
-                        className="border border-gray-200 rounded-lg overflow-hidden hover:border-purple-300 hover:shadow-lg transition-all cursor-pointer"
+                        className={`border rounded-lg overflow-hidden hover:shadow-lg transition-all cursor-pointer ${
+                          isDark
+                            ? 'border-gray-700 hover:border-purple-500 bg-gray-800'
+                            : 'border-gray-200 hover:border-purple-300 bg-white'
+                        }`}
                         onClick={() => loadTemplate(template.id)}
                       >
                         {/* Template Preview */}
-                        <div className="h-32 bg-gradient-to-br from-purple-50 to-blue-50 p-4 flex items-center justify-center relative">
+                        <div className={`h-32 p-4 flex items-center justify-center relative ${
+                          isDark
+                            ? 'bg-gradient-to-br from-purple-900/20 to-blue-900/20'
+                            : 'bg-gradient-to-br from-purple-50 to-blue-50'
+                        }`}>
                           <div className="text-center">
-                            <div className="w-16 h-16 mx-auto bg-purple-100 rounded-lg flex items-center justify-center mb-2">
-                              {template.category === 'Architecture' && <Server className="w-8 h-8 text-purple-600" />}
-                              {template.category === 'Cloud' && <Cloud className="w-8 h-8 text-purple-600" />}
-                              {template.category === 'Network' && <Network className="w-8 h-8 text-purple-600" />}
+                            <div className={`w-16 h-16 mx-auto rounded-lg flex items-center justify-center mb-2 ${
+                              isDark ? 'bg-purple-800/50' : 'bg-purple-100'
+                            }`}>
+                              {template.category === 'Architecture' && <Server className={`w-8 h-8 ${
+                                isDark ? 'text-purple-400' : 'text-purple-600'
+                              }`} />}
+                              {template.category === 'Cloud' && <Cloud className={`w-8 h-8 ${
+                                isDark ? 'text-purple-400' : 'text-purple-600'
+                              }`} />}
+                              {template.category === 'Network' && <Network className={`w-8 h-8 ${
+                                isDark ? 'text-purple-400' : 'text-purple-600'
+                              }`} />}
                             </div>
                           </div>
                           <div className="absolute top-2 right-2">
-                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              isDark
+                                ? 'bg-purple-800/50 text-purple-300'
+                                : 'bg-purple-100 text-purple-700'
+                            }`}>
                               {template.category}
                             </span>
                           </div>
@@ -5030,16 +5146,26 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                         {/* Template Info */}
                         <div className="p-4">
-                          <h3 className="font-semibold text-gray-900 mb-2">{template.name}</h3>
-                          <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+                          <h3 className={`font-semibold mb-2 ${
+                            isDark ? 'text-white' : 'text-gray-900'
+                          }`}>{template.name}</h3>
+                          <p className={`text-sm mb-3 ${
+                            isDark ? 'text-gray-300' : 'text-gray-600'
+                          }`}>{template.description}</p>
 
-                          <div className="flex items-center justify-between text-xs text-gray-500">
+                          <div className={`flex items-center justify-between text-xs ${
+                            isDark ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
                             <div className="flex items-center gap-3">
                               <span>{template.nodes.length} nodes</span>
                               <span>{template.edges.length} connections</span>
                               {template.groups.length > 0 && <span>{template.groups.length} groups</span>}
                             </div>
-                            <button className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors">
+                            <button className={`px-3 py-1 rounded transition-colors ${
+                              isDark
+                                ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                : 'bg-purple-600 hover:bg-purple-700 text-white'
+                            }`}>
                               Use
                             </button>
                           </div>
@@ -5049,11 +5175,21 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </div>
 
                   {/* Custom Section */}
-                  <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Create Your Own</h3>
+                  <div className={`mt-8 p-4 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-800/50 border-gray-700'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <h3 className={`text-lg font-semibold mb-3 ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>Create Your Own</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div
-                        className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 hover:bg-purple-50 transition-colors cursor-pointer"
+                        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+                          isDark
+                            ? 'border-gray-600 hover:border-purple-500 hover:bg-purple-900/20'
+                            : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50'
+                        }`}
                         onClick={() => {
                           // Clear everything for blank canvas
                           setNodes([]);
@@ -5069,15 +5205,31 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           setShowTemplatesDialog(false);
                         }}
                       >
-                        <Plus className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                        <h4 className="font-medium text-gray-900">Blank Canvas</h4>
-                        <p className="text-sm text-gray-600">Start from scratch</p>
+                        <Plus className={`w-8 h-8 mx-auto mb-2 ${
+                          isDark ? 'text-gray-500' : 'text-gray-400'
+                        }`} />
+                        <h4 className={`font-medium ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`}>Blank Canvas</h4>
+                        <p className={`text-sm ${
+                          isDark ? 'text-gray-300' : 'text-gray-600'
+                        }`}>Start from scratch</p>
                       </div>
 
-                      <div className="border border-gray-200 rounded-lg p-6 text-center bg-white">
-                        <FileJson className="w-8 h-8 mx-auto text-blue-500 mb-2" />
-                        <h4 className="font-medium text-gray-900">Import JSON</h4>
-                        <p className="text-sm text-gray-600 mb-3">Load exported diagram</p>
+                      <div className={`border rounded-lg p-6 text-center ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-800'
+                          : 'border-gray-200 bg-white'
+                      }`}>
+                        <FileJson className={`w-8 h-8 mx-auto mb-2 ${
+                          isDark ? 'text-blue-400' : 'text-blue-500'
+                        }`} />
+                        <h4 className={`font-medium ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`}>Import JSON</h4>
+                        <p className={`text-sm mb-3 ${
+                          isDark ? 'text-gray-300' : 'text-gray-600'
+                        }`}>Load exported diagram</p>
                         <input
                           type="file"
                           accept=".json"
@@ -5110,7 +5262,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         />
                         <label
                           htmlFor="import-json"
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded cursor-pointer hover:bg-blue-700 transition-colors"
+                          className={`px-3 py-1 text-sm rounded cursor-pointer transition-colors ${
+                            isDark
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
                         >
                           Choose File
                         </label>
@@ -5371,6 +5527,89 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         onClose={() => setShowCustomNodeBuilder(false)}
         onSave={handleSaveCustomNodeTemplate}
       />
+
+      {/* Unsaved Changes Modal */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-[10003]">
+          <div className={`rounded-xl shadow-2xl max-w-md w-full mx-4 ${
+            isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
+          }`}>
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                  <HelpCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Unsaved Changes
+                  </h2>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    You have unsaved changes that will be lost.
+                  </p>
+                </div>
+              </div>
+
+              <div className={`text-sm mb-6 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Would you like to save your changes before continuing?
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowUnsavedModal(false)}
+                  className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
+                    isDark
+                      ? 'border-gray-600 text-gray-300 hover:bg-gray-800'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={discardChangesAndContinue}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Don&apos;t Save
+                </button>
+                <button
+                  onClick={saveAndContinue}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Save & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Toast */}
+      {notification.visible && (
+        <div className="fixed top-4 right-4 z-[10002] transition-all duration-300 ease-out animate-in slide-in-from-right">
+          <div className={`rounded-xl shadow-2xl backdrop-blur-sm px-4 py-3 flex items-center gap-3 min-w-[320px] max-w-[450px] border-2 ${
+            notification.type === 'success'
+              ? 'bg-gradient-to-r from-green-500/95 to-emerald-500/95 text-white border-green-400/50 shadow-green-500/25'
+              : notification.type === 'error'
+              ? 'bg-gradient-to-r from-red-500/95 to-rose-500/95 text-white border-red-400/50 shadow-red-500/25'
+              : 'bg-gradient-to-r from-blue-500/95 to-cyan-500/95 text-white border-blue-400/50 shadow-blue-500/25'
+          }`}>
+            <div className="flex-shrink-0">
+              {notification.type === 'success' && <CheckCircle className="w-5 h-5 drop-shadow-sm" />}
+              {notification.type === 'error' && <X className="w-5 h-5 drop-shadow-sm" />}
+              {notification.type === 'info' && <HelpCircle className="w-5 h-5 drop-shadow-sm" />}
+            </div>
+            <div className="flex-1 text-sm font-medium drop-shadow-sm">
+              {notification.message}
+            </div>
+            <button
+              onClick={() => setNotification(prev => ({ ...prev, visible: false }))}
+              className="flex-shrink-0 p-1 rounded-full hover:bg-white/20 transition-all duration-200 hover:scale-110"
+              title="Close notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
