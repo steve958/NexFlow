@@ -8,14 +8,18 @@ import {
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 
+import { UserActivity } from './activityTypes';
+
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
   photoURL?: string;
+  bio?: string;
   memberSince: string;
   projectCount: number;
   lastActive: string;
+  activities?: UserActivity[];
   preferences?: {
     theme: 'light' | 'dark' | 'system';
     notifications: boolean;
@@ -49,6 +53,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
         email: data.email,
         displayName: data.displayName,
         photoURL: data.photoURL,
+        bio: data.bio || '',
         memberSince: data.memberSince || 'September 2025',
         projectCount: data.projectCount || 0,
         lastActive: data.lastActive || new Date().toISOString(),
@@ -106,9 +111,11 @@ export async function createOrUpdateUserProfile(user: User, additionalData: Part
         email: user.email || '',
         displayName: user.displayName || user.email?.split('@')[0] || 'User',
         photoURL: user.photoURL || undefined,
+        bio: '',
         memberSince: 'September 2025', // Default as requested
         projectCount: 0,
         lastActive: new Date().toISOString(),
+        activities: [],
         preferences: {
           theme: 'system',
           notifications: true
@@ -147,6 +154,27 @@ export async function updateUserDisplayName(uid: string, displayName: string): P
     });
   } catch (error) {
     console.error('Error updating display name:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update user bio
+ */
+export async function updateUserBio(uid: string, bio: string): Promise<void> {
+  try {
+    const db = getFirebaseDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    const userRef = doc(db, 'users', uid);
+
+    await updateDoc(userRef, {
+      bio: bio.trim(),
+      lastActive: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating bio:', error);
     throw error;
   }
 }

@@ -6,14 +6,16 @@ import NewProjectModal from "@/components/NewProjectModal";
 import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut, User, onAuthStateChanged } from "firebase/auth";
-import { LogOut, Plus, Clock, Star, Folder, Search, Grid, List, Trash2, Copy, User as UserIcon, Settings, Activity, BarChart3 } from "lucide-react";
+import { LogOut, Plus, Clock, Star, Folder, Search, Grid, List, Trash2, Copy, User as UserIcon, Settings, Activity, BarChart3, Edit, Download, LogIn } from "lucide-react";
 import { CanvasThemeProvider } from "@/components/CanvasThemeProvider";
 import { useCanvasTheme } from "@/components/CanvasThemeProvider";
 import { CanvasThemeToggle } from "@/components/CanvasThemeToggle";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { getProjects, deleteProject, duplicateProject, getProjectStats, type Project } from "@/lib/projectStorage";
-import { createOrUpdateUserProfile, updateUserDisplayName, getUserStats, UserProfile, UserStats } from "@/lib/userStorage";
+import { createOrUpdateUserProfile, updateUserDisplayName, updateUserBio, getUserStats, UserProfile, UserStats } from "@/lib/userStorage";
+import { getUserActivities, formatActivityTime, logUserActivity } from "@/lib/activityStorage";
+import { ACTIVITY_DISPLAY_CONFIG, UserActivity } from "@/lib/activityTypes";
 
 function Dashboard() {
   const { isDark } = useCanvasTheme();
@@ -30,7 +32,9 @@ function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userActivities, setUserActivities] = useState<UserActivity[]>([]);
   const [newDisplayName, setNewDisplayName] = useState('');
+  const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Load projects from storage
@@ -52,17 +56,38 @@ function Dashboard() {
           const profile = await createOrUpdateUserProfile(currentUser);
           setUserProfile(profile);
           setNewDisplayName(profile.displayName);
+          setNewBio(profile.bio || '');
 
           // Load user stats
           const stats = await getUserStats(currentUser.uid);
           setUserStats(stats);
+
+          // Load user activities
+          const activities = await getUserActivities(currentUser.uid);
+          setUserActivities(activities);
+
+          // Log sign-in activity (only if this is a new session)
+          const lastActivity = activities[0];
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
+
+          if (!lastActivity ||
+              lastActivity.action !== 'signed_in' ||
+              new Date(lastActivity.timestamp) < oneHourAgo) {
+            await logUserActivity(currentUser.uid, 'signed_in', 'Signed in to NexFlow');
+            // Refresh activities after logging sign-in
+            const updatedActivities = await getUserActivities(currentUser.uid);
+            setUserActivities(updatedActivities);
+          }
         } catch (error) {
           console.error('Error loading user profile:', error);
         }
       } else {
         setUserProfile(null);
         setUserStats(null);
+        setUserActivities([]);
         setNewDisplayName('');
+        setNewBio('');
       }
     });
 
@@ -81,6 +106,17 @@ function Dashboard() {
     }
   };
 
+  const refreshActivities = async () => {
+    if (user) {
+      try {
+        const activities = await getUserActivities(user.uid);
+        setUserActivities(activities);
+      } catch (error) {
+        console.error('Error refreshing activities:', error);
+      }
+    }
+  };
+
   const handleNewProject = () => {
     setIsNewProjectModalOpen(true);
   };
@@ -89,13 +125,27 @@ function Dashboard() {
     setIsTemplateBrowserOpen(true);
   };
 
-  const handleProjectCreated = (projectId: string) => {
+  const handleProjectCreated = async (projectId: string, projectName?: string) => {
     loadProjects(); // Refresh project list
+
+    // Log activity
+    if (user && projectName) {
+      await logUserActivity(user.uid, 'created_project', projectName);
+      refreshActivities();
+    }
+
     router.push(`/app/${projectId}`); // Navigate to new project
   };
 
-  const handleTemplateSelected = (projectId: string) => {
+  const handleTemplateSelected = async (projectId: string, templateName?: string) => {
     loadProjects(); // Refresh project list
+
+    // Log activity
+    if (user && templateName) {
+      await logUserActivity(user.uid, 'used_template', templateName);
+      refreshActivities();
+    }
+
     router.push(`/app/${projectId}`); // Navigate to project created from template
   };
 
@@ -104,6 +154,12 @@ function Dashboard() {
       const success = await deleteProject(projectId);
       if (success) {
         loadProjects(); // Refresh project list
+
+        // Log activity
+        if (user) {
+          await logUserActivity(user.uid, 'deleted_project', projectName);
+          refreshActivities();
+        }
       }
     }
   };
@@ -113,6 +169,13 @@ function Dashboard() {
       const duplicatedProject = await duplicateProject(projectId);
       if (duplicatedProject) {
         loadProjects(); // Refresh project list
+
+        // Log activity
+        if (user) {
+          await logUserActivity(user.uid, 'duplicated_project', duplicatedProject.name);
+          refreshActivities();
+        }
+
         router.push(`/app/${duplicatedProject.id}`); // Navigate to duplicated project
       }
     } catch (error) {
@@ -142,26 +205,52 @@ function Dashboard() {
     return (timestamp as string) || new Date().toISOString();
   };
 
-  const handleUpdateDisplayName = async () => {
-    if (!user || !newDisplayName.trim() || newDisplayName === userProfile?.displayName) {
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+
+    const displayNameChanged = newDisplayName.trim() && newDisplayName !== userProfile?.displayName;
+    const bioChanged = newBio !== (userProfile?.bio || '');
+
+    if (!displayNameChanged && !bioChanged) {
       return;
     }
 
     setIsUpdatingProfile(true);
     try {
-      await updateUserDisplayName(user.uid, newDisplayName.trim());
+      const updates: string[] = [];
+
+      // Update display name if changed
+      if (displayNameChanged) {
+        await updateUserDisplayName(user.uid, newDisplayName.trim());
+        updates.push('display name');
+      }
+
+      // Update bio if changed
+      if (bioChanged) {
+        await updateUserBio(user.uid, newBio);
+        updates.push('bio');
+      }
 
       // Update local state
       if (userProfile) {
         setUserProfile({
           ...userProfile,
-          displayName: newDisplayName.trim()
+          ...(displayNameChanged ? { displayName: newDisplayName.trim() } : {}),
+          ...(bioChanged ? { bio: newBio.trim() } : {})
         });
       }
+
+      // Log activity
+      const updateDescription = updates.length > 1
+        ? `Updated ${updates.join(' and ')}`
+        : `Updated ${updates[0]}`;
+      await logUserActivity(user.uid, 'updated_profile', updateDescription);
+      refreshActivities();
     } catch (error) {
-      console.error('Error updating display name:', error);
-      // Reset to original value on error
+      console.error('Error updating profile:', error);
+      // Reset to original values on error
       setNewDisplayName(userProfile?.displayName || '');
+      setNewBio(userProfile?.bio || '');
     } finally {
       setIsUpdatingProfile(false);
     }
@@ -172,6 +261,29 @@ function Dashboard() {
     project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
     project.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  // Helper function to get icon component for activity
+  const getActivityIcon = (iconName: string) => {
+    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+      Plus,
+      Edit,
+      Trash2,
+      Copy,
+      Settings,
+      LogIn,
+      Star,
+      Download,
+      Folder
+    };
+    return iconMap[iconName] || Activity;
+  };
+
+  const handleDemoClick = async () => {
+    if (user) {
+      await logUserActivity(user.uid, 'tried_demo', 'Interactive Demo Scene');
+      refreshActivities();
+    }
+  };
 
   return (
     <div className={`min-h-screen flex ${
@@ -231,7 +343,7 @@ function Dashboard() {
               <button
                 key={id}
                 onClick={() => setActiveTab(id as 'projects' | 'profile' | 'activity')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer ${
                   activeTab === id
                     ? isDark
                       ? 'bg-blue-500/20 text-blue-300 shadow-lg'
@@ -365,6 +477,7 @@ function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <Link
                   href="/app/demo"
+                  onClick={handleDemoClick}
                   className={`p-6 rounded-2xl transition-all transform hover:scale-105 group shadow-xl hover:shadow-2xl ${
                     isDark
                       ? 'bg-gradient-to-br from-teal-500 to-blue-600 text-white hover:from-teal-600 hover:to-blue-700'
@@ -747,26 +860,29 @@ function Dashboard() {
                   </div>
                   <div className="p-6 space-y-6">
                     <div className="flex items-center gap-6">
-                      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${
-                        isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {userProfile ?
-                          (userProfile.photoURL ? (
-                            <img
-                              src={userProfile.photoURL}
-                              alt={userProfile.displayName}
-                              className="w-full h-full rounded-full object-cover"
-                            />
-                          ) : (
+                      {userProfile?.photoURL ? (
+                        <div className="w-24 h-24 rounded-full overflow-hidden relative bg-gray-200">
+                          <img
+                            src={userProfile.photoURL}
+                            alt={userProfile.displayName}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className={`w-24 h-24 rounded-full flex items-center justify-center text-2xl font-bold ${
+                          isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {userProfile ?
                             userProfile.displayName
                               .split(' ')
                               .map(name => name[0])
                               .join('')
                               .toUpperCase()
                               .slice(0, 2)
-                          )) : 'U'
-                        }
-                      </div>
+                            : 'U'
+                          }
+                        </div>
+                      )}
                       <div>
                         <h4 className={`text-2xl font-bold ${
                           isDark ? 'text-white' : 'text-gray-900'
@@ -828,18 +944,24 @@ function Dashboard() {
                       <textarea
                         rows={4}
                         placeholder="Tell us about yourself..."
+                        value={newBio}
+                        onChange={(e) => setNewBio(e.target.value)}
+                        disabled={isUpdatingProfile}
                         className={`w-full px-3 py-2 rounded-lg border transition-colors resize-none ${
                           isDark
                             ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
                             : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                        } focus:ring-2 focus:ring-blue-500/20`}
+                        } focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50`}
                       />
                     </div>
 
                     <div className="flex justify-end">
                       <button
-                        onClick={handleUpdateDisplayName}
-                        disabled={isUpdatingProfile || !newDisplayName.trim() || newDisplayName === userProfile?.displayName}
+                        onClick={handleUpdateProfile}
+                        disabled={isUpdatingProfile || (
+                          (!newDisplayName.trim() || newDisplayName === userProfile?.displayName) &&
+                          newBio === (userProfile?.bio || '')
+                        )}
                         className={`px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           isDark
                             ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600'
@@ -955,37 +1077,46 @@ function Dashboard() {
                   : 'bg-white/80 border-gray-200 backdrop-blur-sm'
               }`}>
                 <div className="p-6">
-                  <div className="space-y-6">
-                    {[
-                      { icon: Plus, action: 'Created new project', details: 'E-commerce Architecture', time: '2 hours ago' },
-                      { icon: Copy, action: 'Duplicated project', details: 'Microservices Template', time: '1 day ago' },
-                      { icon: Settings, action: 'Updated profile', details: 'Changed display name', time: '3 days ago' },
-                      { icon: Star, action: 'Tried demo', details: 'Interactive Demo Scene', time: '1 week ago' },
-                    ].map((item, index) => (
-                      <div key={index} className="flex items-start gap-4">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          isDark ? 'bg-blue-500/20' : 'bg-blue-100'
-                        }`}>
-                          <item.icon className={`w-5 h-5 ${
-                            isDark ? 'text-blue-400' : 'text-blue-600'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                              {item.action}
-                            </span>
-                            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {item.details}
-                            </span>
+                  {userActivities.length > 0 ? (
+                    <div className="space-y-6">
+                      {userActivities.map((activity) => {
+                        const config = ACTIVITY_DISPLAY_CONFIG[activity.action];
+                        const IconComponent = getActivityIcon(config.icon);
+
+                        return (
+                          <div key={activity.id} className="flex items-start gap-4">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              isDark ? 'bg-blue-500/20' : 'bg-blue-100'
+                            }`}>
+                              <IconComponent className={`w-5 h-5 ${
+                                isDark ? 'text-blue-400' : 'text-blue-600'
+                              }`} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-start gap-2">
+                                <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                  {config.displayText(activity.details)}
+                                </span>
+                              </div>
+                              <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                {formatActivityTime(activity.timestamp)}
+                              </p>
+                            </div>
                           </div>
-                          <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            {item.time}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Activity className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                      <h4 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        No recent activity
+                      </h4>
+                      <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Your recent actions will appear here
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

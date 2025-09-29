@@ -4541,11 +4541,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   title="Profile Menu"
                 >
                   {user?.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt="Profile"
-                      className="w-6 h-6 rounded-full ring-2 ring-teal-400/50"
-                    />
+                    <div className="w-6 h-6 rounded-full ring-2 ring-teal-400/50 overflow-hidden relative">
+                      <img
+                        src={user.photoURL}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                   ) : (
                     <div className="w-6 h-6 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                       <span className="text-white text-xs font-medium">
@@ -4574,11 +4576,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     <div className={`p-4 border-b ${isDark ? 'border-white/10' : 'border-gray-200/50'}`}>
                       <div className="flex items-center gap-3">
                         {user?.photoURL ? (
-                          <img
-                            src={user.photoURL}
-                            alt="Profile"
-                            className="w-10 h-10 rounded-full ring-2 ring-teal-400/50"
-                          />
+                          <div className="w-10 h-10 rounded-full ring-2 ring-teal-400/50 overflow-hidden relative">
+                            <img
+                              src={user.photoURL}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         ) : (
                           <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                             <span className="text-white text-sm font-medium">
@@ -5690,11 +5694,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               }`}>
                 <div className="flex items-center gap-4 mb-4">
                   {user?.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt="Profile"
-                      className="w-16 h-16 rounded-full ring-2 ring-teal-400/50"
-                    />
+                    <div className="w-16 h-16 rounded-full ring-2 ring-teal-400/50 overflow-hidden relative">
+                      <img
+                        src={user.photoURL}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                   ) : (
                     <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                       <span className="text-white text-xl font-medium">
