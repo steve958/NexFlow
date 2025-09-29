@@ -7,6 +7,7 @@ import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut, User, onAuthStateChanged } from "firebase/auth";
 import { LogOut, Plus, Clock, Star, Folder, Search, Grid, List, Trash2, Copy, User as UserIcon, Settings, Activity, BarChart3, Edit, Download, LogIn } from "lucide-react";
+import ConfirmationModal from "@/components/ConfirmationModal";
 import { CanvasThemeProvider } from "@/components/CanvasThemeProvider";
 import { useCanvasTheme } from "@/components/CanvasThemeProvider";
 import { CanvasThemeToggle } from "@/components/CanvasThemeToggle";
@@ -36,6 +37,22 @@ function Dashboard() {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+    confirmText?: string;
+    isLoading?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Load projects from storage
   useEffect(() => {
@@ -149,19 +166,34 @@ function Dashboard() {
     router.push(`/app/${projectId}`); // Navigate to project created from template
   };
 
-  const handleDeleteProject = async (projectId: string, projectName: string) => {
-    if (confirm(`Are you sure you want to delete "${projectName}"? This action cannot be undone.`)) {
-      const success = await deleteProject(projectId);
-      if (success) {
-        loadProjects(); // Refresh project list
+  const handleDeleteProject = (projectId: string, projectName: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Project',
+      message: `Are you sure you want to delete "${projectName}"? This action cannot be undone and all your work will be permanently lost.`,
+      variant: 'danger',
+      confirmText: 'Delete Project',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
 
-        // Log activity
-        if (user) {
-          await logUserActivity(user.uid, 'deleted_project', projectName);
-          refreshActivities();
+        try {
+          const success = await deleteProject(projectId);
+          if (success) {
+            loadProjects(); // Refresh project list
+
+            // Log activity
+            if (user) {
+              await logUserActivity(user.uid, 'deleted_project', projectName);
+              refreshActivities();
+            }
+          }
+        } catch (error) {
+          console.error('Error deleting project:', error);
+        } finally {
+          setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
         }
       }
-    }
+    });
   };
 
   const handleDuplicateProject = async (projectId: string) => {
@@ -1136,6 +1168,18 @@ function Dashboard() {
         isOpen={isTemplateBrowserOpen}
         onClose={() => setIsTemplateBrowserOpen(false)}
         onTemplateSelected={handleTemplateSelected}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+        isLoading={confirmModal.isLoading}
       />
     </div>
   );

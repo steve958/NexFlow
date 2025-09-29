@@ -55,7 +55,7 @@ interface ExportMethodOptions {
 }
 
 interface ExportOptions extends ExportMethodOptions {
-  format: 'png' | 'svg' | 'pdf' | 'jpg';
+  format: 'png' | 'svg' | 'pdf' | 'jpg' | 'video';
 }
 
 interface DiagramBounds {
@@ -756,6 +756,245 @@ export class DiagramExporter {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#x27;');
+  }
+
+  // Create a canvas representation of the diagram for video recording
+  async createCanvasForVideo(options: ExportMethodOptions = {}): Promise<HTMLCanvasElement> {
+    const opts = {
+      scale: 2,
+      padding: 50,
+      background: '#ffffff',
+      ...options,
+    };
+
+    const bounds = this.calculateBounds(opts.padding);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    // Set high resolution for video
+    canvas.width = bounds.width * opts.scale;
+    canvas.height = bounds.height * opts.scale;
+    ctx.scale(opts.scale, opts.scale);
+
+    // Apply background
+    ctx.fillStyle = opts.background;
+    ctx.fillRect(0, 0, bounds.width, bounds.height);
+
+    // Translate to account for bounds
+    ctx.translate(-bounds.minX, -bounds.minY);
+
+    // Draw diagram
+    await this.drawDiagram(ctx, opts);
+
+    console.log('Canvas created for video recording:', {
+      width: canvas.width,
+      height: canvas.height,
+      bounds
+    });
+
+    return canvas;
+  }
+
+  // Setup canvas for real-time animation recording
+  setupAnimationCanvas(
+    containerElement: HTMLElement,
+    options: ExportMethodOptions = {}
+  ): HTMLCanvasElement {
+    const opts = {
+      scale: 1,
+      padding: 50,
+      background: '#ffffff',
+      ...options,
+    };
+
+    const bounds = this.calculateBounds(opts.padding);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    // Set canvas size to match container or calculated bounds
+    const containerRect = containerElement.getBoundingClientRect();
+    canvas.width = containerRect.width || bounds.width;
+    canvas.height = containerRect.height || bounds.height;
+
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '10';
+
+    // Setup for real-time drawing
+    this.setupRealtimeCanvas(canvas, ctx, bounds, opts);
+
+    console.log('Animation canvas setup:', {
+      width: canvas.width,
+      height: canvas.height,
+      container: containerRect
+    });
+
+    return canvas;
+  }
+
+  // Setup canvas for real-time animation rendering
+  private setupRealtimeCanvas(
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    bounds: DiagramBounds,
+    options: ExportMethodOptions
+  ): void {
+    // Set high quality rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    // Clear and redraw function
+    const redraw = () => {
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Apply background
+      ctx.fillStyle = options.background || '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Save context for transformation
+      ctx.save();
+
+      // Calculate scale to fit diagram in canvas
+      const scaleX = canvas.width / bounds.width;
+      const scaleY = canvas.height / bounds.height;
+      const scale = Math.min(scaleX, scaleY, 2); // Cap at 2x scale
+
+      // Center the diagram
+      const offsetX = (canvas.width - bounds.width * scale) / 2;
+      const offsetY = (canvas.height - bounds.height * scale) / 2;
+
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
+      ctx.translate(-bounds.minX, -bounds.minY);
+
+      // Draw static diagram elements
+      this.drawDiagram(ctx, options).catch(console.error);
+
+      ctx.restore();
+    };
+
+    // Initial draw
+    redraw();
+
+    // Store redraw function on canvas for external access
+    (canvas as HTMLCanvasElement & { redraw: () => void }).redraw = redraw;
+  }
+
+  // Export video configuration for MediaRecorder
+  getVideoExportConfig(quality: 'low' | 'medium' | 'high' | 'ultra' = 'high'): {
+    width: number;
+    height: number;
+    frameRate: number;
+    videoBitsPerSecond: number;
+  } {
+    const configs = {
+      low: {
+        width: 1280,
+        height: 720,
+        frameRate: 30,
+        videoBitsPerSecond: 2500000 // 2.5 Mbps
+      },
+      medium: {
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        videoBitsPerSecond: 5000000 // 5 Mbps
+      },
+      high: {
+        width: 1920,
+        height: 1080,
+        frameRate: 60,
+        videoBitsPerSecond: 8000000 // 8 Mbps
+      },
+      ultra: {
+        width: 3840,
+        height: 2160,
+        frameRate: 60,
+        videoBitsPerSecond: 20000000 // 20 Mbps
+      }
+    };
+
+    return configs[quality];
+  }
+
+  // Calculate optimal canvas dimensions for video export
+  calculateVideoCanvasDimensions(
+    targetAspectRatio: number = 16/9,
+    maxWidth: number = 1920,
+    maxHeight: number = 1080
+  ): { width: number; height: number } {
+    const bounds = this.calculateBounds(50);
+    const diagramAspectRatio = bounds.width / bounds.height;
+
+    let canvasWidth: number;
+    let canvasHeight: number;
+
+    if (diagramAspectRatio > targetAspectRatio) {
+      // Diagram is wider, fit to width
+      canvasWidth = Math.min(maxWidth, bounds.width + 100);
+      canvasHeight = canvasWidth / targetAspectRatio;
+    } else {
+      // Diagram is taller, fit to height
+      canvasHeight = Math.min(maxHeight, bounds.height + 100);
+      canvasWidth = canvasHeight * targetAspectRatio;
+    }
+
+    // Ensure dimensions are even numbers (required for some video codecs)
+    canvasWidth = Math.round(canvasWidth / 2) * 2;
+    canvasHeight = Math.round(canvasHeight / 2) * 2;
+
+    return { width: canvasWidth, height: canvasHeight };
+  }
+
+  // Prepare canvas for high-quality video recording
+  async prepareVideoCanvas(
+    containerElement: HTMLElement,
+    videoQuality: 'low' | 'medium' | 'high' | 'ultra' = 'high'
+  ): Promise<HTMLCanvasElement> {
+    const videoConfig = this.getVideoExportConfig(videoQuality);
+    const optimalDimensions = this.calculateVideoCanvasDimensions(
+      videoConfig.width / videoConfig.height,
+      videoConfig.width,
+      videoConfig.height
+    );
+
+    const canvas = document.createElement('canvas');
+    canvas.width = optimalDimensions.width;
+    canvas.height = optimalDimensions.height;
+
+    const ctx = canvas.getContext('2d')!;
+    const bounds = this.calculateBounds(50);
+
+    // Setup canvas styling for recording
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = `${containerElement.clientWidth}px`;
+    canvas.style.height = `${containerElement.clientHeight}px`;
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '1000';
+    canvas.style.background = '#ffffff';
+
+    // Setup high-quality rendering
+    this.setupRealtimeCanvas(canvas, ctx, bounds, {
+      scale: 1,
+      padding: 50,
+      background: '#ffffff',
+      quality: 1
+    });
+
+    console.log('Video canvas prepared:', {
+      dimensions: optimalDimensions,
+      videoConfig,
+      bounds
+    });
+
+    return canvas;
   }
 }
 

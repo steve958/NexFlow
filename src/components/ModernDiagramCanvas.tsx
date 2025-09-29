@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle } from 'lucide-react';
+import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video } from 'lucide-react';
 import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -13,6 +13,9 @@ import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
 import { DiagramExporter, downloadFile, convertPNGtoJPG } from '@/lib/exportUtils';
 import { useCanvasTheme } from './CanvasThemeProvider';
 import { CanvasThemeToggle } from './CanvasThemeToggle';
+import ConfirmationModal from './ConfirmationModal';
+import UnsavedChangesModal from './UnsavedChangesModal';
+import { VideoExportPanel } from './VideoExportPanel';
 
 interface Node {
   id: string;
@@ -22,7 +25,7 @@ interface Node {
   height: number;
   label: string;
   description?: string;
-  type: 'service' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
+  type: 'service' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'endpoint' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
   color: string;
   borderColor: string;
   textColor: string;
@@ -145,6 +148,14 @@ const NODE_TEMPLATES: NodeTemplate[] = [
     borderColor: '#7c3aed',
     icon: Globe,
     description: 'API gateway or proxy'
+  },
+  {
+    type: 'endpoint',
+    label: 'API Endpoint',
+    color: '#6366f1',
+    borderColor: '#4f46e5',
+    icon: Route,
+    description: 'API endpoint or service endpoint'
   },
   {
     type: 'queue',
@@ -571,8 +582,25 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const lastSaveTimeRef = useRef<number>(Date.now()); // Initialize to now to prevent initial unsaved marking
   const saveToHistoryRef = useRef<(() => void) | undefined>(undefined);
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+    confirmText?: string;
+    isLoading?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Export state
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -585,6 +613,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     includeBranding: true,
     theme: 'current' as 'current' | 'light' | 'dark'
   });
+
+  // Video export state
+  const [showVideoExportPanel, setShowVideoExportPanel] = useState(false);
+
 
   // Performance monitoring state
   const [showPerformanceStats, setShowPerformanceStats] = useState(false);
@@ -699,6 +731,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   // Save and continue with pending action
   const saveAndContinue = useCallback(async () => {
     if (projectId && projectId !== 'demo') {
+      setIsSaving(true);
       try {
         await autoSaveToFirestore();
         lastSaveTimeRef.current = Date.now();
@@ -708,7 +741,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         console.error('Error saving project:', error);
         showNotification('Failed to save project. Please try again.', 'error');
         setShowUnsavedModal(false);
+        setPendingAction(null);
+        setIsSaving(false);
         return;
+      } finally {
+        setIsSaving(false);
       }
     }
 
@@ -1007,7 +1044,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       }
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      showNotification('Export failed. Please try again.', 'error');
     }
   }, [diagramExporter, exportFormat, exportOptions, isDark, viewport]);
 
@@ -1108,7 +1145,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           saveToHistory();
         }
       } catch {
-        alert('Invalid JSON file format');
+        showNotification('Invalid JSON file format', 'error');
       }
     };
     reader.readAsText(file);
@@ -1337,34 +1374,42 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     saveToHistory();
 
     setShowLoadDialog(false);
-    alert(`Loaded diagram: ${diagram.title}`);
+    showNotification(`Loaded diagram: ${diagram.title}`, 'success');
   }, [savedDiagrams, saveToHistory]);
 
-  const deleteDiagram = useCallback(async (diagramId: string) => {
-    if (!confirm('Are you sure you want to delete this diagram?')) return;
-
+  const deleteDiagram = useCallback(async (diagramId: string, diagramName?: string) => {
     const db = getFirebaseDb();
     if (!db) {
-      alert('Firebase not configured. Cannot delete from cloud.');
+      showNotification('Firebase not configured. Cannot delete from cloud.', 'error');
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await deleteDoc(doc(db, 'diagrams', diagramId));
-      loadSavedDiagramsRef.current(); // Refresh the list
-      alert('Diagram deleted successfully');
-    } catch (error: unknown) {
-      console.error('Error deleting diagram: ', error);
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
-        alert('Permission denied. Unable to delete diagram.');
-      } else {
-        alert('Failed to delete diagram');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Diagram',
+      message: `Are you sure you want to delete ${diagramName ? `"${diagramName}"` : 'this diagram'}? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Diagram',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+
+        try {
+          await deleteDoc(doc(db, 'diagrams', diagramId));
+          loadSavedDiagramsRef.current(); // Refresh the list
+          showNotification('Diagram deleted successfully', 'success');
+        } catch (error: unknown) {
+          console.error('Error deleting diagram: ', error);
+          if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+            showNotification('Permission denied. Unable to delete diagram.', 'error');
+          } else {
+            showNotification('Failed to delete diagram', 'error');
+          }
+        } finally {
+          setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+        }
       }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadSavedDiagrams]);
+    });
+  }, [showNotification]);
 
   const loadTemplate = useCallback((templateId: string) => {
     console.log('🔵 Loading template:', templateId);
@@ -1446,7 +1491,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       saveToHistory();
 
       setShowTemplatesDialog(false);
-      alert(`Loaded template: ${template.name}`);
+      showNotification(`Loaded template: ${template.name}`, 'success');
     }).catch(() => {
       // Fallback if layout fails
       setNodes(uniqueNodes);
@@ -1456,7 +1501,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       setViewport({ x: 0, y: 0, zoom: 1 });
       saveToHistory();
       setShowTemplatesDialog(false);
-      alert(`Loaded template: ${template.name}`);
+      showNotification(`Loaded template: ${template.name}`, 'success');
     });
   }, [DIAGRAM_TEMPLATES, saveToHistory]);
 
@@ -1738,26 +1783,28 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }, [saveToHistory]);
 
   // Canvas resize to fit container
+  const handleCanvasResize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const container = canvas.parentElement;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    console.log('Canvas resized/refreshed:', { width: canvas.width, height: canvas.height });
+  }, []);
+
   useEffect(() => {
-    const handleResize = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const container = canvas.parentElement;
-      if (!container) return;
-
-      const rect = container.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-    };
-
     // Initial resize
-    handleResize();
+    handleCanvasResize();
 
     // Listen for window resize
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isClient]);
+    window.addEventListener('resize', handleCanvasResize);
+    return () => window.removeEventListener('resize', handleCanvasResize);
+  }, [isClient, handleCanvasResize]);
 
   // Save to history when nodes, edges, or groups change
   useEffect(() => {
@@ -2017,6 +2064,20 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         ctx.lineTo(iconX + iconSize / 2, iconY + iconSize - 2);
         ctx.stroke();
         break;
+      case 'endpoint':
+        // Route/endpoint arrow (smaller)
+        ctx.beginPath();
+        ctx.moveTo(iconX + 2, iconY + iconSize / 2);
+        ctx.lineTo(iconX + iconSize - 6, iconY + iconSize / 2);
+        ctx.moveTo(iconX + iconSize - 8, iconY + 4);
+        ctx.lineTo(iconX + iconSize - 2, iconY + iconSize / 2);
+        ctx.lineTo(iconX + iconSize - 8, iconY + iconSize - 4);
+        ctx.stroke();
+        // Add a small circle at the start
+        ctx.beginPath();
+        ctx.arc(iconX + 4, iconY + iconSize / 2, 2, 0, 2 * Math.PI);
+        ctx.stroke();
+        break;
       case 'storage':
         // Hard drive (smaller)
         ctx.fillRect(iconX + 2, iconY + 3, iconSize - 4, 6);
@@ -2211,12 +2272,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     // Group label background
     const labelPadding = 8;
     const labelHeight = 24;
+
+    // Set font BEFORE measuring text to ensure accurate measurement
+    ctx.font = '600 12px Inter, sans-serif';
+    const textWidth = ctx.measureText(label).width;
+    const labelBackgroundWidth = Math.max(100, textWidth + labelPadding * 2);
+
     ctx.fillStyle = color;
-    ctx.fillRect(x, y, Math.max(100, ctx.measureText(label).width + labelPadding * 2), labelHeight);
+    ctx.fillRect(x, y, labelBackgroundWidth, labelHeight);
 
     // Group label text
     ctx.fillStyle = '#ffffff';
-    ctx.font = '600 12px Inter, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(label, x + labelPadding, y + 16);
 
@@ -2746,6 +2812,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         setSelectedNode(null);
         setSelectedGroup(null);
         setSelectedNodes(new Set());
+        // Auto-switch to Edge section
+        setActivePanel('edges');
         return;
       }
     }
@@ -2772,11 +2840,15 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             newSelected.add(node.id);
           }
           setSelectedNodes(newSelected);
+          // Auto-switch to Nodes section for multi-select
+          setActivePanel('nodes');
         } else {
           setSelectedNode(node.id);
           setSelectedEdge(null);
           setSelectedGroup(null);
           setSelectedNodes(new Set([node.id]));
+          // Auto-switch to Nodes section
+          setActivePanel('nodes');
         }
 
         setDraggedNode(node.id);
@@ -2822,6 +2894,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           setSelectedNode(null);
           setSelectedEdge(null);
           setSelectedNodes(new Set());
+          // Auto-switch to Groups section
+          setActivePanel('groups');
           setDraggedGroup(group.id);
           setDragOffset({ x: worldPos.x - group.x, y: worldPos.y - group.y });
           return;
@@ -4472,6 +4546,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </button>
                   <hr className={isDark ? 'border-white/10' : 'border-gray-200/50'} />
                   <button
+                    onClick={() => {
+                      setShowVideoExportPanel(true);
+                      setShowExportMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
+                  >
+                    <Video className="w-4 h-4" />
+                    Export Video...
+                    <span className={`ml-auto text-xs ${getThemeStyles().textMuted}`}>New</span>
+                  </button>
+                  <hr className={isDark ? 'border-white/10' : 'border-gray-200/50'} />
+                  <button
                     onClick={() => setShowExportDialog(true)}
                     className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm transition-all ${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}
                   >
@@ -5317,10 +5403,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                     setViewport({ x: 0, y: 0, zoom: 1 });
                                     saveToHistory();
                                     setShowTemplatesDialog(false);
-                                    alert('Diagram imported successfully!');
+                                    showNotification('Diagram imported successfully!', 'success');
                                   }
                                 } catch {
-                                  alert('Invalid JSON file');
+                                  showNotification('Invalid JSON file', 'error');
                                 }
                               };
                               reader.readAsText(file);
@@ -5596,58 +5682,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       />
 
       {/* Unsaved Changes Modal */}
-      {showUnsavedModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-[10003]">
-          <div className={`rounded-xl shadow-2xl max-w-md w-full mx-4 ${
-            isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
-          }`}>
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                  <HelpCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                  <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Unsaved Changes
-                  </h2>
-                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    You have unsaved changes that will be lost.
-                  </p>
-                </div>
-              </div>
-
-              <div className={`text-sm mb-6 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Would you like to save your changes before continuing?
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowUnsavedModal(false)}
-                  className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
-                    isDark
-                      ? 'border-gray-600 text-gray-300 hover:bg-gray-800'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={discardChangesAndContinue}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Don&apos;t Save
-                </button>
-                <button
-                  onClick={saveAndContinue}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Save & Continue
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <UnsavedChangesModal
+        isOpen={showUnsavedModal}
+        onClose={() => setShowUnsavedModal(false)}
+        onSave={saveAndContinue}
+        onDiscard={discardChangesAndContinue}
+        isSaving={isSaving}
+      />
 
       {/* Profile Settings Modal */}
       {showProfileSettings && (
@@ -5903,6 +5944,26 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+        isLoading={confirmModal.isLoading}
+      />
+
+      {/* Video Export Panel */}
+      <VideoExportPanel
+        canvasRef={canvasRef}
+        isVisible={showVideoExportPanel}
+        onClose={() => setShowVideoExportPanel(false)}
+        onRecordingStop={handleCanvasResize}
+      />
     </div>
   );
 };
