@@ -478,8 +478,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               setEdges([]);
             }
 
-            // Groups are not stored in project data yet, keep empty array
-            setGroups([]);
+            // Load groups from project data
+            if (project.data.groups && Array.isArray(project.data.groups)) {
+              const processedGroups = project.data.groups.map((group) => ({
+                ...group,
+                isVisible: group.isVisible !== false, // Ensure groups are visible
+                isCollapsed: group.isCollapsed || false,
+                padding: group.padding || 20
+              }));
+              setGroups(processedGroups);
+            } else {
+              setGroups([]);
+            }
             // Switch to nodes panel when a project is loaded
             setActivePanel('nodes');
             // Reset viewport to ensure nodes are visible
@@ -777,12 +787,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       await saveProjectData(projectId, {
         nodes,
         edges,
+        groups,
         viewport
       });
     } catch (error) {
       console.error('Auto-save failed:', error);
     }
-  }, [projectId, nodes, edges, viewport]);
+  }, [projectId, nodes, edges, groups, viewport]);
 
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {

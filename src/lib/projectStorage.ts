@@ -33,6 +33,23 @@ interface Node {
   fontSize: number;
 }
 
+interface NodeGroup {
+  id: string;
+  label: string;
+  description?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  borderColor: string;
+  backgroundColor: string;
+  nodeIds: string[];
+  isCollapsed: boolean;
+  isVisible: boolean;
+  padding: number;
+}
+
 interface Edge {
   id: string;
   sourceId: string;
@@ -65,6 +82,7 @@ export interface Project {
   data?: {
     nodes: Node[];
     edges: Edge[];
+    groups: NodeGroup[];
     viewport: Viewport;
   };
   tags: string[];
@@ -96,6 +114,7 @@ const createDemoProject = (): Project => ({
   data: {
     nodes: [],
     edges: [],
+    groups: [],
     viewport: { x: 0, y: 0, zoom: 1 }
   }
 });
@@ -222,6 +241,7 @@ export const createProject = async (
       data: {
         nodes: [],
         edges: [],
+        groups: [],
         viewport: { x: 0, y: 0, zoom: 1 }
       }
     };
@@ -341,10 +361,10 @@ export const duplicateProject = async (id: string, newName?: string): Promise<Pr
   }
 };
 
-// Save project data (nodes, edges, viewport)
+// Save project data (nodes, edges, groups, viewport)
 export const saveProjectData = async (
   id: string,
-  data: { nodes: Node[]; edges: Edge[]; viewport: Viewport }
+  data: { nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; viewport: Viewport }
 ): Promise<boolean> => {
   try {
     const project = await updateProject(id, { data });
