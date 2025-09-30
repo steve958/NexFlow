@@ -318,17 +318,17 @@ function Dashboard() {
   };
 
   return (
-    <div className={`min-h-screen flex ${
+    <div className={`min-h-screen flex flex-col lg:flex-row ${
       isDark
         ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
         : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
     }`}>
       {/* Left Sidebar - Navigation & Branding */}
-      <div className={`w-80 flex flex-col ${
+      <div className={`w-full lg:w-80 flex flex-col ${
         isDark
           ? 'bg-gradient-to-b from-slate-900 via-blue-900 to-indigo-900'
           : 'bg-gradient-to-b from-white via-blue-50 to-indigo-100'
-      } border-r ${
+      } border-b lg:border-b-0 lg:border-r ${
         isDark ? 'border-gray-700' : 'border-gray-200'
       } shadow-xl relative`}>
         {/* Theme Toggle */}
@@ -337,9 +337,9 @@ function Dashboard() {
         </div>
 
         {/* Header */}
-        <div className="p-8">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="w-16 h-16 relative">
+        <div className="p-6 lg:p-8">
+          <div className="flex items-center gap-3 lg:gap-4 mb-6 lg:mb-8">
+            <div className="w-12 h-12 lg:w-16 lg:h-16 relative flex-shrink-0">
               <div className={`absolute inset-0 rounded-2xl blur-xl ${
                 isDark ? 'bg-blue-500/30' : 'bg-blue-400/40'
               }`}></div>
@@ -351,8 +351,8 @@ function Dashboard() {
                 className="w-full h-full object-contain rounded-2xl drop-shadow-2xl relative z-10"
               />
             </div>
-            <div>
-              <h1 className={`text-2xl font-bold ${
+            <div className="min-w-0">
+              <h1 className={`text-xl lg:text-2xl font-bold truncate ${
                 isDark ? 'text-white' : 'text-gray-900'
               }`}>
                 NexFlow
@@ -406,8 +406,8 @@ function Dashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="flex-1 p-8">
-          <div className={`p-6 rounded-2xl ${
+        <div className="flex-1 p-6 lg:p-8">
+          <div className={`p-4 lg:p-6 rounded-2xl ${
             isDark
               ? 'bg-gradient-to-br from-gray-800/50 to-slate-800/50 border border-gray-700'
               : 'bg-white/80 border border-gray-200 shadow-lg'
@@ -465,7 +465,7 @@ function Dashboard() {
         </div>
 
         {/* Sign Out Button */}
-        <div className="p-8">
+        <div className="p-6 lg:p-8">
           <button
             onClick={() => {
               const auth = getFirebaseAuth();
@@ -486,7 +486,7 @@ function Dashboard() {
       {/* Right Side - Main Content */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Content Area */}
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 lg:p-8">
           {activeTab === 'projects' && (
             <div className="h-full">
               {/* Projects Header */}
@@ -506,7 +506,7 @@ function Dashboard() {
               </div>
 
               {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
                 <Link
                   href="/app/demo"
                   onClick={handleDemoClick}
@@ -653,7 +653,7 @@ function Dashboard() {
                 {/* Projects Grid/List */}
                 <div className="p-6">
                   {viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                       {filteredProjects.map((project) => (
                         <div key={project.id} className={`group rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-all duration-300 relative backdrop-blur-md hover:-translate-y-1 ${
                           isDark
@@ -876,9 +876,9 @@ function Dashboard() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                 {/* Profile Info */}
-                <div className={`xl:col-span-2 rounded-3xl border shadow-2xl ${
+                <div className={`lg:col-span-2 rounded-3xl border shadow-2xl ${
                   isDark
                     ? 'bg-gray-900/50 border-gray-700 backdrop-blur-xl'
                     : 'bg-white/80 border-gray-200 backdrop-blur-sm'
@@ -929,7 +929,7 @@ function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
                       <div>
                         <label className={`block text-sm font-medium mb-2 ${
                           isDark ? 'text-gray-300' : 'text-gray-700'
