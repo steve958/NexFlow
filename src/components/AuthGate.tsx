@@ -141,7 +141,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
             </div>
 
             {/* Features */}
-            <div className="space-y-4 lg:space-y-6 mb-8 lg:mb-12 hidden md:block">
+            <div className="space-y-4 lg:space-y-6 mb-8 lg:mb-12">
               <div className="flex items-center text-left">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 ${
                   isDark
