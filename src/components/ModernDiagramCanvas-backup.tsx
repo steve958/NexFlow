@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video } from 'lucide-react';
 import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -380,9 +380,6 @@ interface ModernDiagramCanvasProps {
 }
 
 const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
-  // Mobile UI state (layout-only; no logic changes)
-  const [isMobileOverflowOpen, setIsMobileOverflowOpen] = useState(false);
-
   const { isDark } = useCanvasTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layoutButtonRef = useRef<HTMLButtonElement>(null);
@@ -539,7 +536,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [activePanel, setActivePanel] = useState<'nodes' | 'edges' | 'animations' | 'templates' | 'groups' | 'controls'>('templates');
   const [draggedTemplate, setDraggedTemplate] = useState<NodeTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Connection state
   const [isConnecting, setIsConnecting] = useState(false);
@@ -1558,23 +1554,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     }
   }, [user, loadSavedDiagrams, projectId]);
 
-  // Set sidebar closed on mobile by default
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setIsSidebarOpen(false);
-      } else {
-        setIsSidebarOpen(true);
-      }
-    };
-
-    // Set initial state
-    handleResize();
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   // Close layout menu when clicking outside
   useEffect(() => {
     if (!showLayoutMenu) return;
@@ -2284,6 +2263,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     if (!group.isVisible) return;
 
     const { x, y, width, height, label, color, borderColor, backgroundColor } = group;
+    console.log('Drawing group with backgroundColor:', backgroundColor);
 
     // Group background
     ctx.fillStyle = backgroundColor;
@@ -3033,200 +3013,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     setIsPanning(false);
   };
 
-  // Touch event handlers for mobile support
-  const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const touch = event.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const screenX = touch.clientX - rect.left;
-    const screenY = touch.clientY - rect.top;
-    const worldPos = screenToWorld(screenX, screenY);
-
-    // Close context menu on any touch
-    setContextMenu(null);
-
-    // Check for connection handles first
-    for (const node of nodes) {
-      if (!node.isVisible) continue;
-
-      const handle = getClickedHandle(worldPos, node);
-      if (handle) {
-        if (isConnecting && connectionStart) {
-          // Complete connection
-          if (connectionStart.nodeId !== node.id) {
-            createEdge(connectionStart.nodeId, node.id, connectionStart.handle, handle);
-          }
-          setIsConnecting(false);
-          setConnectionStart(null);
-          setConnectionPreview(null);
-        } else {
-          // Start connection
-          setIsConnecting(true);
-          setConnectionStart({ nodeId: node.id, handle });
-          setConnectionPreview(worldPos);
-        }
-        return;
-      }
-    }
-
-    // Check if touching a group
-    for (const group of groups) {
-      if (group.isVisible &&
-          worldPos.x >= group.x && worldPos.x <= group.x + group.width &&
-          worldPos.y >= group.y && worldPos.y <= group.y + group.height) {
-        setDraggedGroup(group.id);
-        setDragOffset({
-          x: worldPos.x - group.x,
-          y: worldPos.y - group.y
-        });
-        setSelectedGroup(group.id);
-        setSelectedNode(null);
-        setSelectedEdge(null);
-        setSelectedNodes(new Set());
-        return;
-      }
-    }
-
-    // Check if touching a node
-    for (const node of nodes) {
-      if (node.isVisible &&
-          worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
-          worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
-        setDraggedNode(node.id);
-        setDragOffset({
-          x: worldPos.x - node.x,
-          y: worldPos.y - node.y
-        });
-        setSelectedNode(node.id);
-        setSelectedEdge(null);
-        setSelectedGroup(null);
-        setSelectedNodes(new Set([node.id]));
-        return;
-      }
-    }
-
-    // Check if touching an edge
-    for (const edge of edges) {
-      if (!edge.isVisible) continue;
-      const points = getConnectionPoints(edge);
-      if (!points) continue;
-      const { startX, startY, endX, endY } = points;
-      const midX = (startX + endX) / 2;
-      const midY = (startY + endY) / 2;
-      const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
-      if (distance < 40 / viewport.zoom) {
-        setSelectedEdge(edge.id);
-        setSelectedNode(null);
-        setSelectedGroup(null);
-        setSelectedNodes(new Set());
-        return;
-      }
-    }
-
-    // Touching empty space - clear selection and start panning
-    if (!draggedNode && !draggedGroup) {
-      setSelectedNode(null);
-      setSelectedEdge(null);
-      setSelectedGroup(null);
-      setSelectedNodes(new Set());
-    }
-
-    // Cancel connection if touching empty space
-    if (isConnecting) {
-      setIsConnecting(false);
-      setConnectionStart(null);
-      setConnectionPreview(null);
-    }
-
-    // Start panning
-    setIsPanning(true);
-    setLastPanPoint({ x: screenX, y: screenY });
-  };
-
-  const handleTouchMove = (event: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const touch = event.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const screenX = touch.clientX - rect.left;
-    const screenY = touch.clientY - rect.top;
-    const worldPos = screenToWorld(screenX, screenY);
-
-    // Update connection preview
-    if (isConnecting && connectionStart) {
-      setConnectionPreview(worldPos);
-      return;
-    }
-
-    if (isPanning && !draggedNode && !draggedGroup) {
-      const deltaX = screenX - lastPanPoint.x;
-      const deltaY = screenY - lastPanPoint.y;
-      setViewport(prev => ({
-        ...prev,
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
-      setLastPanPoint({ x: screenX, y: screenY });
-      return;
-    }
-
-    // Handle group dragging
-    if (draggedGroup) {
-      const group = groups.find(g => g.id === draggedGroup);
-      if (group) {
-        const newX = worldPos.x - dragOffset.x;
-        const newY = worldPos.y - dragOffset.y;
-
-        // Snap to grid
-        const gridSize = 20;
-        const snappedX = Math.round(newX / gridSize) * gridSize;
-        const snappedY = Math.round(newY / gridSize) * gridSize;
-
-        // Calculate delta movement
-        const deltaX = snappedX - group.x;
-        const deltaY = snappedY - group.y;
-
-        // Move group
-        setGroups(prev => prev.map(g =>
-          g.id === draggedGroup ? { ...g, x: snappedX, y: snappedY } : g
-        ));
-
-        // Move all nodes in the group
-        setNodes(prev => prev.map(node =>
-          group.nodeIds.includes(node.id)
-            ? { ...node, x: node.x + deltaX, y: node.y + deltaY }
-            : node
-        ));
-      }
-      return;
-    }
-
-    if (!draggedNode) return;
-
-    const newX = worldPos.x - dragOffset.x;
-    const newY = worldPos.y - dragOffset.y;
-
-    // Snap to grid
-    const gridSize = 20;
-    const snappedX = Math.round(newX / gridSize) * gridSize;
-    const snappedY = Math.round(newY / gridSize) * gridSize;
-
-    setNodes(prev => prev.map(node =>
-      selectedNodes.has(node.id)
-        ? { ...node, x: node.x + (snappedX - nodes.find(n => n.id === draggedNode)!.x), y: node.y + (snappedY - nodes.find(n => n.id === draggedNode)!.y) }
-        : node
-    ));
-  };
-
-  const handleTouchEnd = () => {
-    setDraggedNode(null);
-    setDraggedGroup(null);
-    setIsPanning(false);
-  };
-
   // Zoom with mouse wheel - using useEffect to add non-passive listener
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -3281,33 +3067,25 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }
 
   return (
-    <div className={`h-screen w-screen flex overflow-hidden relative ${
+    <div className={`h-screen w-screen flex overflow-hidden ${
       isDark
         ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
         : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
     }`}>
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
       {/* Left Sidebar */}
-      <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-30 h-full md:h-full w-full md:w-[480px] backdrop-blur-xl md:border-r flex flex-col min-h-0 transition-transform duration-300 overflow-hidden ${
+      <div className={`w-[480px] backdrop-blur-xl border-r flex flex-col min-h-0 ${
         isDark
           ? 'bg-gradient-to-b from-gray-900/95 to-gray-900/98 border-white/10'
           : 'bg-gradient-to-b from-white/95 to-gray-50/95 border-gray-200/80 shadow-xl'
-      } pb-[72px] md:pb-0`}>
+      }`}>
         {/* Sidebar Header */}
-        <div className={`p-3 md:p-4 border-b flex-shrink-0 backdrop-blur-sm z-20 ${
+        <div className={`p-4 border-b flex-shrink-0 backdrop-blur-sm z-20 ${
           isDark
             ? 'border-white/10 bg-gradient-to-r from-teal-900/20 to-blue-900/20'
             : 'border-slate-200/60 bg-gradient-to-r from-indigo-50/60 to-purple-50/60'
         }`}>
-          <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
-            <div className="w-10 h-10 md:w-14 md:h-14 relative flex-shrink-0">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-14 h-14 relative">
               <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-blue-500 rounded-xl blur-md opacity-50"></div>
               <NextImage
                 src="/canvas-logo.png"
@@ -3317,18 +3095,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 className="w-full h-full object-contain rounded-xl relative drop-shadow-2xl"
               />
             </div>
-            <h2 className={`flex-1 text-base md:text-xl font-bold drop-shadow-lg truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>NexFlow - Diagram</h2>
-            <button
-              onClick={() => setIsSidebarOpen(false)}
-              className={`md:hidden p-2 rounded-lg transition-colors ${
-                isDark
-                  ? 'hover:bg-white/10 text-white/80 hover:text-white'
-                  : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
-              }`}
-              title="Close Sidebar"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <h2 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>NexFlow - Diagram</h2>
           </div>
 
           {/* Panel Tabs */}
@@ -3339,7 +3106,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               { id: 'animations', label: 'Animate', icon: Play },
               { id: 'nodes', label: 'Node', icon: Circle },
               { id: 'edges', label: 'Edge', icon: Settings },
-              { id: 'controls', label: 'Help', icon: HelpCircle }
+              { id: 'controls', label: 'Controls', icon: HelpCircle }
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -3364,7 +3131,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         </div>
 
         {/* Panel Content */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 min-h-0 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 min-h-0 custom-scrollbar">
           {activePanel === 'templates' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -4436,7 +4203,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         </div>
 
         {/* Bottom Actions */}
-        <div className="p-3 md:p-4 border-t border-gray-200 flex-shrink-0 space-y-2">
+        <div className="p-4 border-t border-gray-200 flex-shrink-0 space-y-2">
           <div className="text-xs text-gray-500 text-center">
             {nodes.length} nodes • {edges.length} connections
           </div>
@@ -4495,33 +4262,24 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Unified Toolbar */}
-        <div className={`backdrop-blur-xl border-b px-3 sm:px-6 py-3 flex-shrink-0 relative z-[10000] ${
+        <div className={`backdrop-blur-xl border-b px-6 py-3 flex-shrink-0 relative z-[10000] ${
           isDark
             ? 'bg-gradient-to-r from-gray-900/95 via-slate-900/95 to-gray-900/95 border-white/10'
             : 'bg-gradient-to-r from-white/95 via-gray-50/95 to-white/95 border-gray-200/80 shadow-lg'
         }`}>
-          <div className="flex items-center justify-between gap-2">
-            {/* Sidebar Toggle (Mobile Only) */}
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className={`md:hidden p-2 rounded-lg transition-all hover:scale-110 flex-shrink-0 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
-              title={isSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}
-            >
-              {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
-            </button>
-
+          <div className="flex items-center justify-between">
             {/* Left Side - Title */}
-            <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30 hidden sm:flex">
+            <div className="flex-1 min-w-0 flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30">
                 <Layers className="w-5 h-5 text-white" />
               </div>
-              <h1 className={`text-sm sm:text-base md:text-xl font-bold drop-shadow-lg truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentProjectName}</h1>
+              <h1 className={`text-xl font-bold drop-shadow-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentProjectName}</h1>
             </div>
 
             {/* Right Side - All Controls */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-2 ml-6">
               {/* Quick Node Creation */}
-              <div className="hidden lg:flex items-center gap-1 border-r border-white/20 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => createNodeFromTemplate(NODE_TEMPLATES.find(t => t.type === 'service')!, 100, 100)}
                   className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
@@ -4566,7 +4324,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={duplicateSelected}
                   disabled={!selectedNode && selectedNodes.size === 0}
-                  className={`hidden sm:inline-flex p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
+                  className={`p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Duplicate Selection (Ctrl+D)"
                 >
                   <Plus className="w-4 h-4" />
@@ -4574,7 +4332,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <button
                   onClick={createGroupFromSelected}
                   disabled={selectedNodes.size < 2}
-                  className="hidden md:inline-flex p-2 rounded-lg hover:bg-teal-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-teal-400 hover:text-teal-300 hover:scale-110"
+                  className="p-2 rounded-lg hover:bg-teal-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-teal-400 hover:text-teal-300 hover:scale-110"
                   title="Group Selected Nodes (Ctrl+G)"
                 >
                   <Layers className="w-4 h-4" />
@@ -4590,7 +4348,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               </div>
 
               {/* Layout Controls */}
-              <div className="hidden sm:flex items-center gap-1 border-r border-white/20 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <div className="relative z-[10001]" data-layout-menu>
                   <button
                     ref={layoutButtonRef}
@@ -4659,7 +4417,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               </div>
 
               {/* View Controls */}
-              <div className="hidden md:flex items-center gap-1 border-r border-white/20 pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(3, prev.zoom * 1.2) }))}
                   className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
@@ -4676,18 +4434,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </button>
                 <button
                   onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
-                  className={`hidden lg:inline-flex p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
+                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                   title="Reset View (Ctrl+0)"
                 >
                   <Maximize className="w-4 h-4" />
                 </button>
-                <div className={`hidden lg:block text-xs ${getThemeStyles().textMuted} font-medium px-2 min-w-[45px] text-center bg-white/5 rounded-lg py-1`}>
+                <div className={`text-xs ${getThemeStyles().textMuted} font-medium px-2 min-w-[45px] text-center bg-white/5 rounded-lg py-1`}>
                   {Math.round(viewport.zoom * 100)}%
                 </div>
               </div>
 
               {/* File Operations */}
-              <div className="flex items-center gap-1 border-r border-white/20 pr-2 sm:pr-3">
+              <div className="flex items-center gap-1 border-r border-white/20 pr-3">
                 <button
                   onClick={saveProject}
                   disabled={!projectId || projectId === 'demo'}
@@ -4731,12 +4489,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               </div>
 
               {/* Theme Toggle */}
-              <div className="hidden md:block border-r border-white/20 pr-3">
+              <div className="border-r border-white/20 pr-3">
                 <CanvasThemeToggle />
               </div>
 
               {/* Export Dropdown */}
-              <div className="relative hidden md:block">
+              <div className="relative">
                 <button
                   ref={exportButtonRef}
                   className="flex items-center gap-2 bg-gradient-to-r from-teal-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-teal-600 hover:to-blue-700 transition-all duration-200 text-sm font-semibold shadow-lg shadow-teal-500/30 hover:scale-105"
@@ -4843,7 +4601,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Performance Stats */}
               <button
                 onClick={() => setShowPerformanceStats(!showPerformanceStats)}
-                className={`hidden md:inline-flex p-2 rounded-lg transition-all ${
+                className={`p-2 rounded-lg transition-all ${
                   showPerformanceStats
                     ? 'bg-teal-500/20 text-teal-300 scale-110'
                     : `${getThemeStyles().textSecondary} ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'} hover:scale-110`
@@ -4856,7 +4614,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {/* Help */}
               <button
                 onClick={() => setShowHelp(true)}
-                className={`hidden md:inline-flex p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
+                className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
                 title="Show Help (? key)"
               >
                 <HelpCircle className="w-4 h-4" />
@@ -4876,11 +4634,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     }
                     setShowProfileMenu(!showProfileMenu);
                   }}
-                  className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg hover:bg-white/10 transition-all"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 transition-all"
                   title="Profile Menu"
                 >
                   {user?.photoURL ? (
-                    <div className="w-7 h-7 md:w-6 md:h-6 rounded-full ring-2 ring-teal-400/50 overflow-hidden relative flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full ring-2 ring-teal-400/50 overflow-hidden relative">
                       <img
                         src={user.photoURL}
                         alt="Profile"
@@ -4888,13 +4646,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       />
                     </div>
                   ) : (
-                    <div className="w-7 h-7 md:w-6 md:h-6 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                    <div className="w-6 h-6 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
                       <span className="text-white text-xs font-medium">
                         {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
                       </span>
                     </div>
                   )}
-                  <span className="hidden md:inline text-sm text-white font-medium max-w-[120px] truncate">
+                  <span className="text-sm text-white font-medium max-w-[120px] truncate">
                     {user?.displayName || user?.email || 'User'}
                   </span>
                 </button>
@@ -5028,9 +4786,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
             onDrop={handleCanvasDrop}
             onDragOver={handleCanvasDragOver}
             onContextMenu={(e) => e.preventDefault()}
@@ -5805,7 +5560,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
           {/* Performance Stats */}
           {showPerformanceStats && (
-            <div className="hidden md:block absolute bottom-6 left-6 w-64 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10">
+            <div className="absolute bottom-6 left-6 w-64 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10">
               <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-blue-600" />
@@ -5851,7 +5606,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           )}
 
           {/* Minimap */}
-          <div className="hidden md:block absolute bottom-6 right-6 w-48 h-36 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-10">
+          <div className="absolute bottom-6 right-6 w-48 h-36 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-10">
             <div className="p-2 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center gap-1">
                 <MousePointer className="w-3 h-3 text-gray-500" />
@@ -6220,84 +5975,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         onClose={() => setShowVideoExportPanel(false)}
         onRecordingStop={handleCanvasResize}
       />
-    
-
-      {/* === Mobile Bottom Toolbar (≤ md) === */}
-      <div className={`md:hidden fixed bottom-0 inset-x-0 z-[95] border-t ${isDark ? 'bg-gray-950/90 border-white/10' : 'bg-white/90 border-gray-200/70'} backdrop-blur-xl`}>
-        <div className="grid grid-cols-4 gap-1 px-2 py-2">
-          <button
-            onClick={() => setViewport(prev => ({ ...prev, zoom: Math.max(0.1, prev.zoom * 0.8) }))}
-            className={`flex flex-col items-center gap-1 p-2 rounded-lg ${getThemeStyles().hoverBg} ${getThemeStyles().textSecondary}`}
-            aria-label="Zoom Out"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-5 h-5" />
-            <span className="text-[10px]">Out</span>
-          </button>
-
-          <button
-            onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
-            className={`flex flex-col items-center gap-1 p-2 rounded-lg ${getThemeStyles().hoverBg} ${getThemeStyles().textSecondary}`}
-            aria-label="Reset View"
-            title="Reset View"
-          >
-            <Maximize className="w-5 h-5" />
-            <span className="text-[10px]">Reset</span>
-          </button>
-
-          <button
-            onClick={() => setViewport(prev => ({ ...prev, zoom: Math.min(3, prev.zoom * 1.2) }))}
-            className={`flex flex-col items-center gap-1 p-2 rounded-lg ${getThemeStyles().hoverBg} ${getThemeStyles().textSecondary}`}
-            aria-label="Zoom In"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-5 h-5" />
-            <span className="text-[10px]">In</span>
-          </button>
-
-          <div className="relative">
-            <button
-              onClick={() => setIsMobileOverflowOpen(v => !v)}
-              className={`w-full flex flex-col items-center gap-1 p-2 rounded-lg ${getThemeStyles().hoverBg} ${getThemeStyles().textSecondary}`}
-              aria-haspopup="menu"
-              aria-expanded={isMobileOverflowOpen}
-              title="More"
-            >
-              <Settings className="w-5 h-5" />
-              <span className="text-[10px]">More</span>
-            </button>
-
-            {isMobileOverflowOpen && (
-              <div
-                role="menu"
-                className={`absolute bottom-12 right-0 min-w-[220px] rounded-xl shadow-2xl ${getThemeStyles().background} ${getThemeStyles().border} p-2 z-[96]`}
-              >
-                <div className="grid grid-cols-2 gap-1">
-                  <button onClick={saveProject} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
-                    <Save className="w-4 h-4" /><span className="text-sm">Save</span>
-                  </button>
-                  <button onClick={() => { loadSavedDiagramsRef.current(); setShowLoadDialog(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
-                    <FolderOpen className="w-4 h-4" /><span className="text-sm">Load</span>
-                  </button>
-                  <button onClick={() => { setShowExportDialog(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
-                    <Download className="w-4 h-4" /><span className="text-sm">Export</span>
-                  </button>
-                  <button onClick={() => { setShowLayoutMenu(v => !v); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
-                    <Workflow className="w-4 h-4" /><span className="text-sm">Layout</span>
-                  </button>
-                  <button onClick={() => { setShowVideoExportPanel(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
-                    <Video className="w-4 h-4" /><span className="text-sm">Video</span>
-                  </button>
-                  <button onClick={() => { setShowKeyboardShortcuts(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
-                    <HelpCircle className="w-4 h-4" /><span className="text-sm">Shortcuts</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-</div>
+    </div>
   );
 };
 
