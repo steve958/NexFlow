@@ -5,7 +5,7 @@ import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from "f
 import Image from "next/image";
 import { useCanvasTheme } from "./CanvasThemeProvider";
 import { CanvasThemeToggle } from "./CanvasThemeToggle";
-import { ArrowRight, CheckCircle, Layers, Zap, Download } from "lucide-react";
+import { ArrowRight, CheckCircle, Layers, Activity, Download } from "lucide-react";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { isDark } = useCanvasTheme();
@@ -170,18 +170,18 @@ export default function AuthGate({ children }: { children: ReactNode }) {
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 shadow-lg'
                     : 'bg-gradient-to-r from-indigo-400 to-purple-500 shadow-md'
                 }`}>
-                  <Zap className="w-6 h-6 text-white" />
+                  <Activity className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h3 className={`text-lg font-semibold ${
                     isDark ? 'text-white' : 'text-gray-900'
                   }`}>
-                    Smart Auto-Layout
+                    Traffic Flow Animation
                   </h3>
                   <p className={`text-sm ${
                     isDark ? 'text-blue-200' : 'text-gray-600'
                   }`}>
-                    Advanced algorithms for perfect positioning
+                    Visualize load balancing and traffic patterns
                   </p>
                 </div>
               </div>
