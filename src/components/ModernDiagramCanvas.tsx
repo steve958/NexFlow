@@ -567,7 +567,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
   // Load state
   const [showLoadDialog, setShowLoadDialog] = useState(false);
-  const [savedDiagrams, setSavedDiagrams] = useState<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }[]>([]);
+  const [savedDiagrams, setSavedDiagrams] = useState<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string | { toDate: () => Date } }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Templates state
@@ -580,6 +580,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState('');
+
+  // Viewport width state for responsive breakpoint
+  const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
 
   // Auto-layout state
   const [isLayouting, setIsLayouting] = useState(false);
@@ -1352,7 +1355,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         ...doc.data()
       }));
 
-      setSavedDiagrams(diagrams as Array<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string }>);
+      setSavedDiagrams(diagrams as Array<{ id: string; title: string; nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; animationConfigs: Record<string, AnimationConfig>; createdAt: string | { toDate: () => Date } }>);
     } catch (error: unknown) {
       console.error('Error loading diagrams (this is expected if Firebase rules are not set up): ', error);
       // Don't show error to user for permission issues, just set empty array
@@ -1558,9 +1561,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     }
   }, [user, loadSavedDiagrams, projectId]);
 
-  // Set sidebar closed on mobile by default
+  // Set sidebar closed on mobile by default and track viewport width
   useEffect(() => {
     const handleResize = () => {
+      setViewportWidth(window.innerWidth);
       if (window.innerWidth < 768) {
         setIsSidebarOpen(false);
       } else {
@@ -4072,7 +4076,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">File Operations</h4>
+                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${isDark ? 'text-teal-300' : 'text-blue-600'}`}>File Operations</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
                       <span className={`${getThemeStyles().textSecondary}`}>Export JSON</span>
@@ -4090,7 +4094,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-bold text-teal-300 mb-2 uppercase tracking-wide">Mouse Controls</h4>
+                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${isDark ? 'text-teal-300' : 'text-blue-600'}`}>Mouse Controls</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
                       <span className={`${getThemeStyles().textSecondary}`}>Create connection</span>
@@ -4108,11 +4112,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </div>
               </div>
 
-              <div className="p-3 bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-teal-400/30 rounded-xl backdrop-blur-sm">
+              <div className={`p-3 bg-gradient-to-br rounded-xl backdrop-blur-sm ${isDark ? 'from-teal-500/20 to-blue-500/20 border border-teal-400/30' : 'from-blue-500/10 to-indigo-500/10 border border-blue-400/30'}`}>
                 <div className="flex items-start gap-2">
-                  <HelpCircle className="w-4 h-4 text-teal-300 flex-shrink-0 mt-0.5" />
+                  <HelpCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isDark ? 'text-teal-300' : 'text-blue-600'}`} />
                   <div className={`text-xs ${getThemeStyles().textBold}`}>
-                    <strong>Pro Tip:</strong> Press <kbd className="px-1 py-0.5 bg-teal-500/30 text-teal-300 rounded border border-teal-400/30 text-xs">?</kbd> or <kbd className="px-1 py-0.5 bg-teal-500/30 text-teal-300 rounded border border-teal-400/30 text-xs">F1</kbd> anytime to open the full help dialog with more detailed instructions.
+                    <strong>Pro Tip:</strong> Press <kbd className={`px-1 py-0.5 rounded border text-xs ${isDark ? 'bg-teal-500/30 text-teal-300 border-teal-400/30' : 'bg-blue-500/20 text-blue-700 border-blue-400/40'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded border text-xs ${isDark ? 'bg-teal-500/30 text-teal-300 border-teal-400/30' : 'bg-blue-500/20 text-blue-700 border-blue-400/40'}`}>F1</kbd> anytime to open the full help dialog with more detailed instructions.
                   </div>
                 </div>
               </div>
@@ -4510,13 +4514,15 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
             </button>
 
-            {/* Left Side - Title */}
-            <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30 hidden sm:flex">
-                <Layers className="w-5 h-5 text-white" />
+            {/* Left Side - Title (Hidden below 1600px) */}
+            {viewportWidth >= 1600 && (
+              <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30">
+                  <Layers className="w-5 h-5 text-white" />
+                </div>
+                <h1 className={`text-base xl:text-xl font-bold drop-shadow-lg truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentProjectName}</h1>
               </div>
-              <h1 className={`text-sm sm:text-base md:text-xl font-bold drop-shadow-lg truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentProjectName}</h1>
-            </div>
+            )}
 
             {/* Right Side - All Controls */}
             <div className="flex items-center gap-1 sm:gap-2">
@@ -4862,6 +4868,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <HelpCircle className="w-4 h-4" />
               </button>
 
+              {/* Theme Toggle (Mobile Only) */}
+              <div className="md:hidden">
+                <CanvasThemeToggle />
+              </div>
+
               {/* Profile Menu */}
               <div className="relative">
                 <button
@@ -4894,7 +4905,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       </span>
                     </div>
                   )}
-                  <span className="hidden md:inline text-sm text-white font-medium max-w-[120px] truncate">
+                  <span className={`hidden md:inline text-sm font-medium max-w-[120px] truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {user?.displayName || user?.email || 'User'}
                   </span>
                 </button>
@@ -4910,7 +4921,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       top: `${profileMenuPosition.top}px`,
                       right: `${profileMenuPosition.right}px`
                     }}
-                    onMouseLeave={() => setShowProfileMenu(false)}
                   >
                     <div className={`p-4 border-b ${isDark ? 'border-white/10' : 'border-gray-200/50'}`}>
                       <div className="flex items-center gap-3">
@@ -5017,6 +5027,20 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
         {/* Canvas */}
         <div className="flex-1 relative overflow-hidden">
+          {/* Fixed Project Label (Visible below 1600px viewport width) */}
+          {viewportWidth < 1600 && (
+            <div className={`absolute top-4 left-4 z-10 flex items-center gap-2 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border ${
+              isDark
+                ? 'bg-gray-900/90 border-gray-700'
+                : 'bg-white/90 border-gray-200'
+            }`}>
+              <div className="w-6 h-6 bg-gradient-to-br from-teal-500 to-blue-600 rounded-md flex items-center justify-center shadow-md">
+                <Layers className="w-4 h-4 text-white" />
+              </div>
+              <h1 className={`text-sm font-bold truncate max-w-[150px] sm:max-w-[200px] ${isDark ? 'text-white' : 'text-gray-900'}`}>{currentProjectName}</h1>
+            </div>
+          )}
+
           <canvas
             ref={canvasRef}
             className={`absolute inset-0 w-full h-full ${
@@ -5443,7 +5467,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                 <span>{diagram.edges?.length || 0} connections</span>
                                 <span>{diagram.groups?.length || 0} groups</span>
                                 <span>
-                                  {diagram.createdAt || 'Unknown date'}
+                                  {typeof diagram.createdAt === 'string'
+                                    ? diagram.createdAt
+                                    : diagram.createdAt?.toDate
+                                    ? new Date(diagram.createdAt.toDate()).toLocaleDateString()
+                                    : 'Unknown date'}
                                 </span>
                               </div>
                             </div>
@@ -6258,21 +6286,25 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           <div className="relative">
             <button
               onClick={() => setIsMobileOverflowOpen(v => !v)}
-              className={`w-full flex flex-col items-center gap-1 p-2 rounded-lg ${getThemeStyles().hoverBg} ${getThemeStyles().textSecondary}`}
+              className={`w-full flex flex-col items-center gap-1 p-2 rounded-lg ${getThemeStyles().hoverBg} ${isDark ? 'text-white' : 'text-gray-700'}`}
               aria-haspopup="menu"
               aria-expanded={isMobileOverflowOpen}
               title="More"
             >
               <Settings className="w-5 h-5" />
-              <span className="text-[10px]">More</span>
+              <span className="text-[10px] font-medium">More</span>
             </button>
 
             {isMobileOverflowOpen && (
               <div
                 role="menu"
-                className={`absolute bottom-12 right-0 min-w-[220px] rounded-xl shadow-2xl ${getThemeStyles().background} ${getThemeStyles().border} p-2 z-[96]`}
+                className={`absolute bottom-12 right-0 min-w-[220px] rounded-xl shadow-2xl p-2 z-[96] backdrop-blur-xl ${
+                  isDark
+                    ? 'bg-gray-900/95 border border-gray-700'
+                    : 'bg-white/95 shadow-md border border-gray-200/70'
+                }`}
               >
-                <div className="grid grid-cols-2 gap-1">
+                <div className={`grid grid-cols-2 gap-1 ${isDark ? 'text-white' : 'text-gray-800'}`}>
                   <button onClick={saveProject} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
                     <Save className="w-4 h-4" /><span className="text-sm">Save</span>
                   </button>

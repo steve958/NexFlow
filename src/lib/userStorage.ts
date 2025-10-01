@@ -54,9 +54,9 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
         displayName: data.displayName,
         photoURL: data.photoURL,
         bio: data.bio || '',
-        memberSince: data.memberSince || 'September 2025',
+        memberSince: data.memberSince?.toDate ? new Date(data.memberSince.toDate()).toLocaleDateString() : (data.memberSince || 'September 2025'),
         projectCount: data.projectCount || 0,
-        lastActive: data.lastActive || new Date().toISOString(),
+        lastActive: data.lastActive?.toDate ? new Date(data.lastActive.toDate()).toISOString() : (data.lastActive || new Date().toISOString()),
         preferences: data.preferences || {
           theme: 'system',
           notifications: true
