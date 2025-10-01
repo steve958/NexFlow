@@ -1648,7 +1648,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     setDraggedTemplate(template);
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('application/json', JSON.stringify(template));
-  }, []);
+
+    // Close sidebar on small screens when dragging starts
+    if (viewportWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, [viewportWidth]);
 
   // Handle canvas drop
   const handleCanvasDrop = useCallback((event: React.DragEvent) => {
