@@ -4131,10 +4131,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             return (
               <div className="p-4 space-y-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-white drop-shadow-md">Group Properties</h3>
+                  <h3 className={`font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Group Properties</h3>
                   <button
                     onClick={() => setSelectedGroup(null)}
-                    className="p-1 hover:bg-white/20 rounded-lg transition-all text-white"
+                    className={`p-1 rounded-lg transition-all ${getThemeStyles().hoverBg} ${getThemeStyles().text}`}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -4183,7 +4183,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, borderColor: e.target.value } : g
                         ));
                       }}
-                      className="w-full h-10 rounded-lg border border-white/20 bg-white/5"
+                      className={`w-full h-10 rounded-lg border ${isDark ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-gray-50'}`}
                     />
                   </div>
                   <div>
@@ -4196,7 +4196,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           g.id === selectedGroup ? { ...g, color: e.target.value } : g
                         ));
                       }}
-                      className="w-full h-10 rounded-lg border border-white/20 bg-white/5"
+                      className={`w-full h-10 rounded-lg border ${isDark ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-gray-50'}`}
                     />
                   </div>
                 </div>
@@ -4241,7 +4241,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           } : g
                         ));
                       }}
-                      className="flex-1 h-10 rounded-lg border border-white/20 bg-white/5"
+                      className={`flex-1 h-10 rounded-lg border ${isDark ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-gray-50'}`}
                     />
                     <select
                       value={(() => {
@@ -4287,13 +4287,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           } : g
                         ));
                       }}
-                      className="px-2 py-2 bg-gray-800 border border-white/20 text-white rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      className={`px-2 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                        isDark
+                          ? 'bg-gray-800 border-white/20 text-white focus:ring-teal-500'
+                          : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500'
+                      }`}
                     >
-                      <option value="0.05" className="bg-gray-800 text-white">5%</option>
-                      <option value="0.1" className="bg-gray-800 text-white">10%</option>
-                      <option value="0.2" className="bg-gray-800 text-white">20%</option>
-                      <option value="0.3" className="bg-gray-800 text-white">30%</option>
-                      <option value="0.5" className="bg-gray-800 text-white">50%</option>
+                      <option value="0.05">5%</option>
+                      <option value="0.1">10%</option>
+                      <option value="0.2">20%</option>
+                      <option value="0.3">30%</option>
+                      <option value="0.5">50%</option>
                     </select>
                   </div>
                 </div>
@@ -4374,10 +4378,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 </div>
 
                 {/* Group Info */}
-                <div className="p-3 bg-white/5 border border-white/20 rounded-xl backdrop-blur-sm">
+                <div className={`p-3 rounded-xl backdrop-blur-sm ${
+                  isDark
+                    ? 'bg-white/5 border border-white/20'
+                    : 'bg-gray-100 border border-gray-200'
+                }`}>
                   <div className={`text-sm ${getThemeStyles().textBold} space-y-1`}>
-                    <p><strong className="text-teal-300">Nodes in group:</strong> {group.nodeIds.length}</p>
-                    <p><strong className="text-teal-300">Status:</strong> {group.isCollapsed ? 'Collapsed' : 'Expanded'}</p>
+                    <p><strong className={isDark ? 'text-teal-300' : 'text-blue-600'}>Nodes in group:</strong> {group.nodeIds.length}</p>
+                    <p><strong className={isDark ? 'text-teal-300' : 'text-blue-600'}>Status:</strong> {group.isCollapsed ? 'Collapsed' : 'Expanded'}</p>
                   </div>
                 </div>
 
@@ -4389,7 +4397,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         g.id === selectedGroup ? { ...g, isCollapsed: !g.isCollapsed } : g
                       ));
                     }}
-                    className="flex-1 px-3 py-2 bg-teal-500/20 text-teal-300 rounded-lg hover:bg-teal-500/30 transition-all font-semibold"
+                    className={`flex-1 px-3 py-2 rounded-lg transition-all font-semibold ${
+                      isDark
+                        ? 'bg-teal-500/20 text-teal-300 hover:bg-teal-500/30'
+                        : 'bg-blue-500/20 text-blue-700 hover:bg-blue-500/30'
+                    }`}
                   >
                     {group.isCollapsed ? 'Expand' : 'Collapse'}
                   </button>
@@ -4399,7 +4411,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         g.id === selectedGroup ? { ...g, isVisible: !g.isVisible } : g
                       ));
                     }}
-                    className="flex-1 px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all font-semibold flex items-center justify-center gap-2"
+                    className={`flex-1 px-3 py-2 rounded-lg transition-all font-semibold flex items-center justify-center gap-2 ${
+                      isDark
+                        ? 'bg-white/10 text-white hover:bg-white/20'
+                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                    }`}
                   >
                     {group.isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     {group.isVisible ? 'Hide' : 'Show'}
@@ -4411,7 +4427,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     onClick={() => {
                       ungroupSelected();
                     }}
-                    className="flex-1 px-3 py-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-all font-semibold"
+                    className={`flex-1 px-3 py-2 rounded-lg transition-all font-semibold ${
+                      isDark
+                        ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30'
+                        : 'bg-orange-500/20 text-orange-700 hover:bg-orange-500/30'
+                    }`}
                   >
                     Ungroup
                   </button>
@@ -4419,7 +4439,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     onClick={() => {
                       deleteSelected();
                     }}
-                    className="flex-1 px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all font-semibold"
+                    className={`flex-1 px-3 py-2 rounded-lg transition-all font-semibold ${
+                      isDark
+                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                        : 'bg-red-500/20 text-red-700 hover:bg-red-500/30'
+                    }`}
                   >
                     Delete Group
                   </button>
