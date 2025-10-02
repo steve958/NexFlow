@@ -508,6 +508,14 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             } else {
               setGroups([]);
             }
+
+            // Load animation configs from project data
+            if (project.data.animationConfigs) {
+              setAnimationConfigs(project.data.animationConfigs);
+            } else {
+              setAnimationConfigs({});
+            }
+
             // Switch to nodes panel when a project is loaded
             setActivePanel('nodes');
             // Reset viewport to ensure nodes are visible
@@ -810,12 +818,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         nodes,
         edges,
         groups,
-        viewport
+        viewport,
+        animationConfigs
       });
     } catch (error) {
       console.error('Auto-save failed:', error);
     }
-  }, [projectId, nodes, edges, groups, viewport]);
+  }, [projectId, nodes, edges, groups, viewport, animationConfigs]);
 
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
@@ -1879,21 +1888,32 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const animationFrameRef = useRef<number>(0);
   const frameCountRef = useRef(0);
 
-  // Initialize animation configs for all edges
+  // Initialize animation configs for new edges only
   useEffect(() => {
-    const configs: Record<string, AnimationConfig> = {};
-    edges.forEach(edge => {
-      configs[edge.id] = {
-        speed: 0.02,
-        frequency: 60,
-        size: 8,
-        color: '#3b82f6',
-        shape: 'circle',
-        trail: false,
-        enabled: false
-      };
+    setAnimationConfigs(prev => {
+      const configs = { ...prev };
+      edges.forEach(edge => {
+        // Only initialize if this edge doesn't have a config yet
+        if (!configs[edge.id]) {
+          configs[edge.id] = {
+            speed: 0.02,
+            frequency: 60,
+            size: 8,
+            color: '#3b82f6',
+            shape: 'circle',
+            trail: false,
+            enabled: false
+          };
+        }
+      });
+      // Remove configs for deleted edges
+      Object.keys(configs).forEach(edgeId => {
+        if (!edges.find(e => e.id === edgeId)) {
+          delete configs[edgeId];
+        }
+      });
+      return configs;
     });
-    setAnimationConfigs(configs);
   }, [edges]);
 
   // Get node by ID

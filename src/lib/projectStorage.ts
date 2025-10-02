@@ -73,6 +73,16 @@ interface Viewport {
   zoom: number;
 }
 
+interface AnimationConfig {
+  speed: number;
+  frequency: number;
+  size: number;
+  color: string;
+  shape: 'circle' | 'square' | 'diamond' | 'triangle';
+  trail: boolean;
+  enabled: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -86,6 +96,7 @@ export interface Project {
     edges: Edge[];
     groups: NodeGroup[];
     viewport: Viewport;
+    animationConfigs?: Record<string, AnimationConfig>;
   };
   tags: string[];
   category: string;
@@ -366,7 +377,7 @@ export const duplicateProject = async (id: string, newName?: string): Promise<Pr
 // Save project data (nodes, edges, groups, viewport)
 export const saveProjectData = async (
   id: string,
-  data: { nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; viewport: Viewport }
+  data: { nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; viewport: Viewport; animationConfigs?: Record<string, AnimationConfig> }
 ): Promise<boolean> => {
   try {
     const project = await updateProject(id, { data });
