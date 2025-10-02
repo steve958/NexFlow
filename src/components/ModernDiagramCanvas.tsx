@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video, PanelLeftClose, PanelLeftOpen, ServerCog } from 'lucide-react';
 import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -25,7 +25,7 @@ interface Node {
   height: number;
   label: string;
   description?: string;
-  type: 'service' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'endpoint' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
+  type: 'service' | 'server' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'endpoint' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
   color: string;
   borderColor: string;
   textColor: string;
@@ -124,6 +124,14 @@ const NODE_TEMPLATES: NodeTemplate[] = [
     borderColor: '#1e40af',
     icon: Server,
     description: 'Application service or microservice'
+  },
+  {
+    type: 'server',
+    label: 'On-Premise Server',
+    color: '#475569',
+    borderColor: '#334155',
+    icon: ServerCog,
+    description: 'Physical or on-premise server'
   },
   {
     type: 'database',
@@ -470,10 +478,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               const processedEdges = project.data.edges.map((edge) => ({
                 ...edge,
                 isVisible: true, // KEY FIX: Ensure edges are visible
-                width: edge.width || 2,
-                style: edge.style || 'solid',
-                animated: edge.animated || false,
-                curvature: edge.curvature || 0.5
+                width: edge.width ?? 2,
+                style: edge.style ?? 'solid',
+                animated: edge.animated ?? false,
+                curvature: edge.curvature ?? 0.5
               })) as Edge[];
 
               setEdges(processedEdges);
@@ -2126,6 +2134,27 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         ctx.fillStyle = borderColor;
         ctx.fillRect(iconX + 3, iconY + 7, iconSize - 6, 1);
         break;
+      case 'server':
+        // On-premise server with gear icon
+        ctx.strokeRect(iconX + 2, iconY + 2, iconSize - 4, iconSize - 4);
+        for (let i = 0; i < 2; i++) {
+          ctx.fillRect(iconX + 3, iconY + 4 + i * 2, iconSize - 6, 1);
+        }
+        // Draw small gear in corner
+        const gearX = iconX + iconSize - 4;
+        const gearY = iconY + iconSize - 4;
+        ctx.beginPath();
+        ctx.arc(gearX, gearY, 1.5, 0, 2 * Math.PI);
+        ctx.stroke();
+        // Gear teeth
+        for (let i = 0; i < 4; i++) {
+          const angle = (i * Math.PI) / 2;
+          ctx.beginPath();
+          ctx.moveTo(gearX, gearY);
+          ctx.lineTo(gearX + Math.cos(angle) * 2, gearY + Math.sin(angle) * 2);
+          ctx.stroke();
+        }
+        break;
       default:
         // Server/service (default - smaller)
         ctx.strokeRect(iconX + 2, iconY + 2, iconSize - 4, iconSize - 4);
@@ -3298,8 +3327,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm pointer-events-none"
         />
       )}
 
