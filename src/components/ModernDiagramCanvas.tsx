@@ -748,7 +748,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   ];
 
   const [animationConfigs, setAnimationConfigs] = useState<Record<string, AnimationConfig>>({});
-  const [allAnimationsRunning, setAllAnimationsRunning] = useState(false);
+  // Derive allAnimationsRunning from animationConfigs
+  const allAnimationsRunning = Object.values(animationConfigs).some(config => config.enabled);
 
   // Show notification function
   const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -2937,10 +2938,42 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         const points = getConnectionPoints(edge);
         if (!points) continue;
         const { startX, startY, endX, endY } = points;
-        const midX = (startX + endX) / 2;
-        const midY = (startY + endY) / 2;
-        const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
-        if (distance < 40 / viewport.zoom) {
+
+        // Calculate Bezier control points
+        const controlOffset = Math.min(Math.abs(endX - startX) * edge.curvature, 150);
+        const cp1X = startX + controlOffset;
+        const cp1Y = startY;
+        const cp2X = endX - controlOffset;
+        const cp2Y = endY;
+
+        // Sample multiple points along the Bezier curve for accurate hit detection
+        const samples = 20; // More samples for better accuracy on long edges
+        let minDistance = Infinity;
+
+        for (let i = 0; i <= samples; i++) {
+          const t = i / samples;
+
+          // Bezier curve equation
+          const curveX = Math.pow(1 - t, 3) * startX +
+                        3 * Math.pow(1 - t, 2) * t * cp1X +
+                        3 * (1 - t) * Math.pow(t, 2) * cp2X +
+                        Math.pow(t, 3) * endX;
+          const curveY = Math.pow(1 - t, 3) * startY +
+                        3 * Math.pow(1 - t, 2) * t * cp1Y +
+                        3 * (1 - t) * Math.pow(t, 2) * cp2Y +
+                        Math.pow(t, 3) * endY;
+
+          const distance = Math.sqrt(
+            Math.pow(worldPos.x - curveX, 2) + Math.pow(worldPos.y - curveY, 2)
+          );
+
+          minDistance = Math.min(minDistance, distance);
+        }
+
+        // Use a threshold that accounts for edge width and zoom level
+        const threshold = Math.max(15, edge.width + 10) / viewport.zoom;
+
+        if (minDistance < threshold) {
           setContextMenu({
             x: event.clientX,
             y: event.clientY,
@@ -3003,11 +3036,42 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       if (!points) continue;
 
       const { startX, startY, endX, endY } = points;
-      const midX = (startX + endX) / 2;
-      const midY = (startY + endY) / 2;
 
-      const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
-      if (distance < 40 / viewport.zoom) {
+      // Calculate Bezier control points
+      const controlOffset = Math.min(Math.abs(endX - startX) * edge.curvature, 150);
+      const cp1X = startX + controlOffset;
+      const cp1Y = startY;
+      const cp2X = endX - controlOffset;
+      const cp2Y = endY;
+
+      // Sample multiple points along the Bezier curve for accurate hit detection
+      const samples = 20; // More samples for better accuracy on long edges
+      let minDistance = Infinity;
+
+      for (let i = 0; i <= samples; i++) {
+        const t = i / samples;
+
+        // Bezier curve equation
+        const curveX = Math.pow(1 - t, 3) * startX +
+                      3 * Math.pow(1 - t, 2) * t * cp1X +
+                      3 * (1 - t) * Math.pow(t, 2) * cp2X +
+                      Math.pow(t, 3) * endX;
+        const curveY = Math.pow(1 - t, 3) * startY +
+                      3 * Math.pow(1 - t, 2) * t * cp1Y +
+                      3 * (1 - t) * Math.pow(t, 2) * cp2Y +
+                      Math.pow(t, 3) * endY;
+
+        const distance = Math.sqrt(
+          Math.pow(worldPos.x - curveX, 2) + Math.pow(worldPos.y - curveY, 2)
+        );
+
+        minDistance = Math.min(minDistance, distance);
+      }
+
+      // Use a threshold that accounts for edge width and zoom level
+      const threshold = Math.max(15, edge.width + 10) / viewport.zoom;
+
+      if (minDistance < threshold) {
         setSelectedEdge(edge.id);
         setSelectedNode(null);
         setSelectedGroup(null);
@@ -3282,10 +3346,42 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       const points = getConnectionPoints(edge);
       if (!points) continue;
       const { startX, startY, endX, endY } = points;
-      const midX = (startX + endX) / 2;
-      const midY = (startY + endY) / 2;
-      const distance = Math.sqrt(Math.pow(worldPos.x - midX, 2) + Math.pow(worldPos.y - midY, 2));
-      if (distance < 40 / viewport.zoom) {
+
+      // Calculate Bezier control points
+      const controlOffset = Math.min(Math.abs(endX - startX) * edge.curvature, 150);
+      const cp1X = startX + controlOffset;
+      const cp1Y = startY;
+      const cp2X = endX - controlOffset;
+      const cp2Y = endY;
+
+      // Sample multiple points along the Bezier curve for accurate hit detection
+      const samples = 20; // More samples for better accuracy on long edges
+      let minDistance = Infinity;
+
+      for (let i = 0; i <= samples; i++) {
+        const t = i / samples;
+
+        // Bezier curve equation
+        const curveX = Math.pow(1 - t, 3) * startX +
+                      3 * Math.pow(1 - t, 2) * t * cp1X +
+                      3 * (1 - t) * Math.pow(t, 2) * cp2X +
+                      Math.pow(t, 3) * endX;
+        const curveY = Math.pow(1 - t, 3) * startY +
+                      3 * Math.pow(1 - t, 2) * t * cp1Y +
+                      3 * (1 - t) * Math.pow(t, 2) * cp2Y +
+                      Math.pow(t, 3) * endY;
+
+        const distance = Math.sqrt(
+          Math.pow(worldPos.x - curveX, 2) + Math.pow(worldPos.y - curveY, 2)
+        );
+
+        minDistance = Math.min(minDistance, distance);
+      }
+
+      // Use a threshold that accounts for edge width and zoom level
+      const threshold = Math.max(15, edge.width + 10) / viewport.zoom;
+
+      if (minDistance < threshold) {
         setSelectedEdge(edge.id);
         setSelectedNode(null);
         setSelectedGroup(null);
@@ -3450,11 +3546,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   }
 
   return (
-    <div className={`h-screen w-screen flex overflow-hidden relative ${
-      isDark
-        ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
-        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-    }`}>
+    <div className="h-screen flex overflow-hidden relative">
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div
@@ -3463,7 +3555,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       )}
 
       {/* Left Sidebar */}
-      <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-30 h-full md:h-full w-full md:w-[480px] backdrop-blur-xl md:border-r flex flex-col min-h-0 transition-transform duration-300 overflow-hidden ${
+      <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-30 md:z-auto h-full w-full md:w-[480px] md:flex-shrink-0 backdrop-blur-xl md:border-r flex flex-col min-h-0 transition-transform duration-300 overflow-hidden ${
         isDark
           ? 'bg-gradient-to-b from-gray-900/95 to-gray-900/98 border-white/10'
           : 'bg-gradient-to-b from-white/95 to-gray-50/95 border-gray-200/80 shadow-xl'
@@ -4673,7 +4765,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   return updated;
                 });
                 setPackets([]);
-                setAllAnimationsRunning(false);
               } else {
                 // Start all animations
                 setAnimationConfigs(prev => {
@@ -4683,7 +4774,6 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   });
                   return updated;
                 });
-                setAllAnimationsRunning(true);
               }
             }}
             disabled={Object.keys(animationConfigs).length === 0}

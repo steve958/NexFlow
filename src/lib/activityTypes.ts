@@ -12,6 +12,7 @@ export type ActivityAction =
   | 'updated_project'
   | 'deleted_project'
   | 'duplicated_project'
+  | 'renamed_project'
   | 'updated_profile'
   | 'signed_in'
   | 'tried_demo'
@@ -44,6 +45,10 @@ export const ACTIVITY_DISPLAY_CONFIG: Record<ActivityAction, {
   duplicated_project: {
     displayText: (details) => `Duplicated project "${details}"`,
     icon: 'Copy'
+  },
+  renamed_project: {
+    displayText: (details) => `Renamed project ${details}`,
+    icon: 'Edit'
   },
   updated_profile: {
     displayText: (details) => details || 'Updated profile',

@@ -54,6 +54,19 @@ function Dashboard() {
     onConfirm: () => {},
   });
 
+  // Rename modal state
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    projectId: string;
+    currentName: string;
+    newName: string;
+  }>({
+    isOpen: false,
+    projectId: '',
+    currentName: '',
+    newName: ''
+  });
+
   // Load projects from storage
   useEffect(() => {
     loadProjects();
@@ -212,6 +225,43 @@ function Dashboard() {
       }
     } catch (error) {
       console.error('Error duplicating project:', error);
+    }
+  };
+
+  const handleRenameProject = (projectId: string, currentName: string) => {
+    setRenameModal({
+      isOpen: true,
+      projectId,
+      currentName,
+      newName: currentName
+    });
+  };
+
+  const handleRenameConfirm = async () => {
+    const { projectId, newName, currentName } = renameModal;
+
+    if (!newName.trim() || newName.trim() === currentName) {
+      setRenameModal({ isOpen: false, projectId: '', currentName: '', newName: '' });
+      return;
+    }
+
+    try {
+      const { updateProject } = await import('@/lib/projectStorage');
+      const updatedProject = await updateProject(projectId, { name: newName.trim() });
+
+      if (updatedProject) {
+        loadProjects(); // Refresh project list
+
+        // Log activity
+        if (user) {
+          await logUserActivity(user.uid, 'renamed_project', `"${currentName}" to "${newName.trim()}"`);
+          refreshActivities();
+        }
+      }
+    } catch (error) {
+      console.error('Error renaming project:', error);
+    } finally {
+      setRenameModal({ isOpen: false, projectId: '', currentName: '', newName: '' });
     }
   };
 
@@ -749,6 +799,20 @@ function Dashboard() {
                                 <button
                                   onClick={(e) => {
                                     e.preventDefault();
+                                    handleRenameProject(project.id, project.name);
+                                  }}
+                                  className={`p-2.5 rounded-lg shadow-lg border transition-all backdrop-blur-sm hover:scale-110 ${
+                                    isDark
+                                      ? 'bg-gray-800/90 hover:bg-purple-500/20 border-gray-600 hover:border-purple-400 text-gray-400 hover:text-purple-300'
+                                      : 'bg-white/95 hover:bg-purple-50 border-gray-300 hover:border-purple-400 text-gray-700 hover:text-purple-600'
+                                  }`}
+                                  title="Rename project"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
                                     handleDuplicateProject(project.id);
                                   }}
                                   className={`p-2.5 rounded-lg shadow-lg border transition-all backdrop-blur-sm hover:scale-110 ${
@@ -1181,6 +1245,68 @@ function Dashboard() {
         confirmText={confirmModal.confirmText}
         isLoading={confirmModal.isLoading}
       />
+
+      {/* Rename Project Modal */}
+      {renameModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md rounded-2xl shadow-2xl ${
+            isDark
+              ? 'bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700'
+              : 'bg-white border border-gray-200'
+          }`}>
+            <div className="p-6">
+              <h3 className={`text-xl font-bold mb-4 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                Rename Project
+              </h3>
+              <input
+                type="text"
+                value={renameModal.newName}
+                onChange={(e) => setRenameModal({ ...renameModal, newName: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameConfirm();
+                  if (e.key === 'Escape') setRenameModal({ isOpen: false, projectId: '', currentName: '', newName: '' });
+                }}
+                className={`w-full px-4 py-3 rounded-xl border ${
+                  isDark
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500'
+                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-purple-500'
+                } focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all`}
+                placeholder="Enter new project name"
+                autoFocus
+              />
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setRenameModal({ isOpen: false, projectId: '', currentName: '', newName: '' })}
+                  className={`flex-1 px-4 py-2.5 rounded-xl font-medium transition-all ${
+                    isDark
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRenameConfirm}
+                  disabled={!renameModal.newName.trim() || renameModal.newName.trim() === renameModal.currentName}
+                  className={`flex-1 px-4 py-2.5 rounded-xl font-medium transition-all ${
+                    !renameModal.newName.trim() || renameModal.newName.trim() === renameModal.currentName
+                      ? isDark
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDark
+                        ? 'bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-500/20'
+                        : 'bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-500/30'
+                  }`}
+                >
+                  Rename
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
