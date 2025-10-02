@@ -88,6 +88,7 @@ interface AnimationConfig {
   shape: 'circle' | 'square' | 'diamond' | 'triangle';
   trail: boolean;
   enabled: boolean;
+  frameOffset?: number;
 }
 
 interface NodeGroup {
@@ -885,6 +886,84 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       setHistoryIndex(prev => prev + 1);
     }
   }, [history, historyIndex]);
+
+  // Graph traversal function to find all outgoing edges (downstream flow)
+  const findConnectedEdges = useCallback((startNodeId: string): Set<string> => {
+    const connectedEdges = new Set<string>();
+    const visitedNodes = new Set<string>();
+    const nodesToVisit = [startNodeId];
+
+    while (nodesToVisit.length > 0) {
+      const currentNodeId = nodesToVisit.pop()!;
+
+      // Skip if already visited
+      if (visitedNodes.has(currentNodeId)) continue;
+      visitedNodes.add(currentNodeId);
+
+      // Find all outgoing edges from this node
+      edges.forEach(edge => {
+        const isSource = edge.sourceId === currentNodeId;
+
+        if (isSource) {  // Only follow outgoing edges
+          connectedEdges.add(edge.id);
+
+          // Follow the flow by adding the target node
+          if (!visitedNodes.has(edge.targetId)) {
+            nodesToVisit.push(edge.targetId);
+          }
+        }
+      });
+    }
+
+    return connectedEdges;
+  }, [edges]);
+
+  // Handler to run animations only for outgoing edges (downstream flow)
+  const handleRunConnectedAnimations = useCallback((nodeId: string) => {
+    const connectedEdgeIds = findConnectedEdges(nodeId);
+
+    if (connectedEdgeIds.size === 0) {
+      showNotification('No outgoing edges from this node', 'info');
+      return;
+    }
+
+    // Check if all outgoing animations are currently running
+    const connectedAnimationsRunning = Array.from(connectedEdgeIds).every(
+      edgeId => animationConfigs[edgeId]?.enabled
+    );
+
+    if (connectedAnimationsRunning) {
+      // Stop all outgoing animations
+      setAnimationConfigs(prev => {
+        const updated = { ...prev };
+        connectedEdgeIds.forEach(edgeId => {
+          if (updated[edgeId]) {
+            updated[edgeId] = { ...updated[edgeId], enabled: false };
+          }
+        });
+        return updated;
+      });
+      // Remove packets for these edges
+      setPackets(prev => prev.filter(p => !connectedEdgeIds.has(p.edgeId)));
+      showNotification(`Stopped animations for ${connectedEdgeIds.size} outgoing edge(s)`, 'success');
+    } else {
+      // Start all outgoing animations with random offsets
+      setAnimationConfigs(prev => {
+        const updated = { ...prev };
+        connectedEdgeIds.forEach(edgeId => {
+          if (updated[edgeId]) {
+            updated[edgeId] = {
+              ...updated[edgeId],
+              enabled: true,
+              frameOffset: Math.floor(Math.random() * updated[edgeId].frequency)
+            };
+          }
+        });
+        return updated;
+      });
+      showNotification(`Started animations for ${connectedEdgeIds.size} outgoing edge(s)`, 'success');
+    }
+  }, [animationConfigs, findConnectedEdges, showNotification]);
 
   // Auto-layout functions
   const applyAutoLayout = useCallback(async (layoutType: string) => {
@@ -1903,7 +1982,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             color: '#3b82f6',
             shape: 'circle',
             trail: false,
-            enabled: false
+            enabled: false,
+            frameOffset: 0
           };
         }
       });
@@ -2823,7 +2903,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       // Add new packets for active animations (only for visible edges)
       const visibleEdgeIds = new Set(getVisibleEdges().map(edge => edge.id));
       Object.entries(animationConfigs).forEach(([edgeId, config]) => {
-        if (config.enabled && visibleEdgeIds.has(edgeId) && frameCountRef.current % config.frequency === 0) {
+        if (config.enabled && visibleEdgeIds.has(edgeId) && (frameCountRef.current + (config.frameOffset || 0)) % config.frequency === 0) {
           const edge = edges.find(e => e.id === edgeId);
           if (edge) {
             // Create forward packet
@@ -4065,6 +4145,55 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       />
                       Drop Shadow
                     </label>
+
+                    {/* Run Outgoing Flow Animations Button */}
+                    {(() => {
+                      const connectedEdges = findConnectedEdges(node.id);
+                      const hasConnectedEdges = connectedEdges.size > 0;
+                      const connectedAnimationsRunning = hasConnectedEdges && Array.from(connectedEdges).every(
+                        edgeId => animationConfigs[edgeId]?.enabled
+                      );
+
+                      return (
+                        <div className="pt-2 border-t border-white/10">
+                          <button
+                            onClick={() => handleRunConnectedAnimations(node.id)}
+                            disabled={!hasConnectedEdges}
+                            className={`w-full py-2.5 px-3 rounded-lg transition-all font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md border ${
+                              connectedAnimationsRunning
+                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 border-orange-400 hover:shadow-orange-500/50'
+                                : hasConnectedEdges
+                                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-600 hover:to-cyan-600 border-teal-400 hover:shadow-teal-500/50'
+                                  : 'bg-gray-500 text-gray-300 border-gray-400'
+                            }`}
+                          >
+                            {connectedAnimationsRunning ? (
+                              <>
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                  <rect x="6" y="5" width="4" height="14" rx="1" />
+                                  <rect x="14" y="5" width="4" height="14" rx="1" />
+                                </svg>
+                                Stop Outgoing Flow
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" fill="currentColor" />
+                                  <circle cx="12" cy="12" r="2" />
+                                  <path d="M12 2v4M12 18v4M2 12h4M18 12h4" strokeLinecap="round" />
+                                </svg>
+                                Run Outgoing Flow
+                              </>
+                            )}
+                          </button>
+                          {hasConnectedEdges && (
+                            <p className={`text-xs mt-1.5 text-center ${getThemeStyles().textMuted}`}>
+                              {connectedEdges.size} outgoing edge{connectedEdges.size !== 1 ? 's' : ''}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </>
                 );
               })()}
@@ -4766,11 +4895,15 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 });
                 setPackets([]);
               } else {
-                // Start all animations
+                // Start all animations with random offsets
                 setAnimationConfigs(prev => {
                   const updated = { ...prev };
                   Object.keys(updated).forEach(key => {
-                    updated[key] = { ...updated[key], enabled: true };
+                    updated[key] = {
+                      ...updated[key],
+                      enabled: true,
+                      frameOffset: Math.floor(Math.random() * updated[key].frequency)
+                    };
                   });
                   return updated;
                 });

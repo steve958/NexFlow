@@ -81,6 +81,7 @@ interface AnimationConfig {
   shape: 'circle' | 'square' | 'diamond' | 'triangle';
   trail: boolean;
   enabled: boolean;
+  frameOffset?: number;
 }
 
 export interface Project {
