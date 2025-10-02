@@ -57,6 +57,8 @@ interface Edge {
   width: number;
   style: 'solid' | 'dashed' | 'dotted';
   animated: boolean;
+  bidirectional: boolean;
+  bounce: boolean;
   curvature: number;
   arrowSize: number;
   isVisible: boolean;
@@ -73,6 +75,9 @@ interface Packet {
   edgeId: string;
   trail: boolean;
   speed: number;
+  direction: 'forward' | 'reverse';
+  isBouncing: boolean;
+  hasBouncedOnce: boolean;
 }
 
 interface AnimationConfig {
@@ -481,6 +486,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 width: edge.width ?? 2,
                 style: edge.style ?? 'solid',
                 animated: edge.animated ?? false,
+                bidirectional: edge.bidirectional ?? false,
+                bounce: edge.bounce ?? false,
                 curvature: edge.curvature ?? 0.5
               })) as Edge[];
 
@@ -1610,11 +1617,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       targetId,
       sourceHandle,
       targetHandle,
-      label: 'connection',
+      label: '',
       color: '#6b7280',
       width: 2,
       style: 'solid',
       animated: false,
+      bidirectional: false,
+      bounce: false,
       curvature: 0.3,
       arrowSize: 24,
       isVisible: true
@@ -2266,7 +2275,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       ctx.setLineDash([]);
     }
 
-    // Draw tapered line (thick at source, thin at target)
+    // Draw line (tapered for unidirectional, uniform for bidirectional)
     const baseWidth = isSelected ? edge.width + 2 : edge.width;
     const segments = 20; // Number of segments for smooth taper
 
@@ -2280,8 +2289,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       const x2 = Math.pow(1 - t2, 3) * startX + 3 * Math.pow(1 - t2, 2) * t2 * cp1X + 3 * (1 - t2) * Math.pow(t2, 2) * cp2X + Math.pow(t2, 3) * endX;
       const y2 = Math.pow(1 - t2, 3) * startY + 3 * Math.pow(1 - t2, 2) * t2 * cp1Y + 3 * (1 - t2) * Math.pow(t2, 2) * cp2Y + Math.pow(t2, 3) * endY;
 
-      // Taper from baseWidth to baseWidth * 0.3
-      const width = baseWidth * (1 - t1 * 0.7);
+      // Taper for unidirectional, uniform width for bidirectional
+      const width = edge.bidirectional ? baseWidth : baseWidth * (1 - t1 * 0.7);
 
       ctx.strokeStyle = isSelected ? '#ef4444' : edge.color;
       ctx.lineWidth = width;
@@ -2291,30 +2300,74 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       ctx.stroke();
     }
 
+    // Draw arrowheads for bidirectional edges
+    if (edge.bidirectional) {
+      const arrowSize = edge.arrowSize / 3; // Scale down for visual balance
+
+      // Calculate arrow at end (target)
+      const t = 0.95; // Position near the end
+      const endArrowX = Math.pow(1 - t, 3) * startX + 3 * Math.pow(1 - t, 2) * t * cp1X + 3 * (1 - t) * Math.pow(t, 2) * cp2X + Math.pow(t, 3) * endX;
+      const endArrowY = Math.pow(1 - t, 3) * startY + 3 * Math.pow(1 - t, 2) * t * cp1Y + 3 * (1 - t) * Math.pow(t, 2) * cp2Y + Math.pow(t, 3) * endY;
+
+      // Direction vector at end
+      const endDx = endX - endArrowX;
+      const endDy = endY - endArrowY;
+      const endAngle = Math.atan2(endDy, endDx);
+
+      // Draw end arrowhead
+      ctx.fillStyle = isSelected ? '#ef4444' : edge.color;
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - arrowSize * Math.cos(endAngle - Math.PI / 6), endY - arrowSize * Math.sin(endAngle - Math.PI / 6));
+      ctx.lineTo(endX - arrowSize * Math.cos(endAngle + Math.PI / 6), endY - arrowSize * Math.sin(endAngle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+
+      // Calculate arrow at start (source)
+      const tStart = 0.05; // Position near the start
+      const startArrowX = Math.pow(1 - tStart, 3) * startX + 3 * Math.pow(1 - tStart, 2) * tStart * cp1X + 3 * (1 - tStart) * Math.pow(tStart, 2) * cp2X + Math.pow(tStart, 3) * endX;
+      const startArrowY = Math.pow(1 - tStart, 3) * startY + 3 * Math.pow(1 - tStart, 2) * tStart * cp1Y + 3 * (1 - tStart) * Math.pow(tStart, 2) * cp2Y + Math.pow(tStart, 3) * endY;
+
+      // Direction vector at start (reversed)
+      const startDx = startX - startArrowX;
+      const startDy = startY - startArrowY;
+      const startAngle = Math.atan2(startDy, startDx);
+
+      // Draw start arrowhead
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(startX - arrowSize * Math.cos(startAngle - Math.PI / 6), startY - arrowSize * Math.sin(startAngle - Math.PI / 6));
+      ctx.lineTo(startX - arrowSize * Math.cos(startAngle + Math.PI / 6), startY - arrowSize * Math.sin(startAngle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    }
+
     // Reset line dash
     ctx.setLineDash([]);
 
-    // Edge label
-    const midX = (startX + cp1X + cp2X + endX) / 4;
-    const midY = (startY + cp1Y + cp2Y + endY) / 4;
+    // Edge label (only draw if label is not empty)
+    if (edge.label && edge.label.trim() !== '') {
+      const midX = (startX + cp1X + cp2X + endX) / 4;
+      const midY = (startY + cp1Y + cp2Y + endY) / 4;
 
-    // Label background
-    const labelMetrics = ctx.measureText(edge.label);
-    const labelWidth = labelMetrics.width + 12;
-    const labelHeight = 20;
+      // Label background
+      const labelMetrics = ctx.measureText(edge.label);
+      const labelWidth = labelMetrics.width + 12;
+      const labelHeight = 20;
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.fillRect(midX - labelWidth / 2, midY - labelHeight / 2, labelWidth, labelHeight);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillRect(midX - labelWidth / 2, midY - labelHeight / 2, labelWidth, labelHeight);
 
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(midX - labelWidth / 2, midY - labelHeight / 2, labelWidth, labelHeight);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(midX - labelWidth / 2, midY - labelHeight / 2, labelWidth, labelHeight);
 
-    // Label text
-    ctx.fillStyle = '#374151';
-    ctx.font = '12px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(edge.label, midX, midY + 4);
+      // Label text
+      ctx.fillStyle = '#374151';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(edge.label, midX, midY + 4);
+    }
   };
 
   // Draw group container
@@ -2697,10 +2750,42 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
         if (!edge || !config?.enabled) return null;
 
-        const newProgress = packet.progress + packet.speed;
+        // Update progress based on direction
+        const newProgress = packet.direction === 'forward'
+          ? packet.progress + packet.speed
+          : packet.progress - packet.speed;
 
-        if (newProgress >= 1) {
-          return null; // Remove completed packet
+        // Handle bouncing packets
+        if (edge.bounce && packet.isBouncing) {
+          // Check if packet reached the end and needs to bounce back
+          if (packet.direction === 'forward' && newProgress >= 1) {
+            if (packet.hasBouncedOnce) {
+              return null; // Remove after completing round trip
+            }
+            // Bounce back
+            const position = getPacketPosition(edge, 1);
+            if (!position) return packet;
+            return {
+              ...packet,
+              x: position.x,
+              y: position.y,
+              progress: 1,
+              direction: 'reverse',
+              hasBouncedOnce: true
+            };
+          }
+          // Check if packet returned to start
+          if (packet.direction === 'reverse' && newProgress <= 0) {
+            return null; // Remove after completing round trip
+          }
+        } else {
+          // Non-bouncing packets - remove when reaching end
+          if (packet.direction === 'forward' && newProgress >= 1) {
+            return null;
+          }
+          if (packet.direction === 'reverse' && newProgress <= 0) {
+            return null;
+          }
         }
 
         const position = getPacketPosition(edge, newProgress);
@@ -2720,20 +2805,46 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         if (config.enabled && visibleEdgeIds.has(edgeId) && frameCountRef.current % config.frequency === 0) {
           const edge = edges.find(e => e.id === edgeId);
           if (edge) {
-            const position = getPacketPosition(edge, 0);
-            if (position) {
+            // Create forward packet
+            const forwardPosition = getPacketPosition(edge, 0);
+            if (forwardPosition) {
               updated.push({
                 id: `packet-${Date.now()}-${Math.random()}`,
-                x: position.x,
-                y: position.y,
+                x: forwardPosition.x,
+                y: forwardPosition.y,
                 progress: 0,
                 color: config.color,
                 size: config.size,
                 shape: config.shape,
                 edgeId,
                 trail: config.trail,
-                speed: config.speed
+                speed: config.speed,
+                direction: 'forward',
+                isBouncing: edge.bounce,
+                hasBouncedOnce: false
               });
+            }
+
+            // Create reverse packet for bidirectional edges (but not for bounce)
+            if (edge.bidirectional && !edge.bounce) {
+              const reversePosition = getPacketPosition(edge, 1);
+              if (reversePosition) {
+                updated.push({
+                  id: `packet-${Date.now()}-${Math.random()}-rev`,
+                  x: reversePosition.x,
+                  y: reversePosition.y,
+                  progress: 1,
+                  color: config.color,
+                  size: config.size,
+                  shape: config.shape,
+                  edgeId,
+                  trail: config.trail,
+                  speed: config.speed,
+                  direction: 'reverse',
+                  isBouncing: false,
+                  hasBouncedOnce: false
+                });
+              }
             }
           }
         }
@@ -3534,7 +3645,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <div className={`font-semibold text-sm drop-shadow-sm ${getThemeStyles().textBold}`}>{edge.label}</div>
+                        <div className={`font-semibold text-sm drop-shadow-sm ${getThemeStyles().textBold}`}>{edge.label || 'Unlabeled Connection'}</div>
                         <div className={`text-xs ${getThemeStyles().textMuted}`}>
                           {getNode(edge.sourceId)?.label} → {getNode(edge.targetId)?.label}
                         </div>
@@ -3880,6 +3991,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         onChange={(e) => setEdges(prev => prev.map(ed =>
                           ed.id === selectedEdge ? { ...ed, label: e.target.value } : ed
                         ))}
+                        placeholder="Leave empty for no label"
                         className={`w-full px-3 py-2 rounded-lg text-sm focus:ring-2 focus:border-transparent backdrop-blur-sm ${getThemeStyles().inputBg} ${getThemeStyles().inputBorder} ${getThemeStyles().inputText} ${getThemeStyles().placeholder} ${isDark ? 'focus:ring-teal-500' : 'focus:ring-blue-500'}`}
                       />
                     </div>
@@ -3911,6 +4023,34 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           <option value="dotted">Dotted</option>
                         </select>
                       </div>
+                    </div>
+
+                    <div>
+                      <label className={`flex items-center gap-2 text-xs font-semibold ${getThemeStyles().textBold} cursor-pointer`}>
+                        <input
+                          type="checkbox"
+                          checked={edge.bidirectional}
+                          onChange={(e) => setEdges(prev => prev.map(ed =>
+                            ed.id === selectedEdge ? { ...ed, bidirectional: e.target.checked } : ed
+                          ))}
+                          className="w-4 h-4 rounded border-white/20 bg-white/5 text-teal-500 focus:ring-teal-500"
+                        />
+                        Bidirectional (Two-way animation)
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className={`flex items-center gap-2 text-xs font-semibold ${getThemeStyles().textBold} cursor-pointer`}>
+                        <input
+                          type="checkbox"
+                          checked={edge.bounce}
+                          onChange={(e) => setEdges(prev => prev.map(ed =>
+                            ed.id === selectedEdge ? { ...ed, bounce: e.target.checked } : ed
+                          ))}
+                          className="w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500"
+                        />
+                        Bounce (Round-trip animation)
+                      </label>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">

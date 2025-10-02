@@ -61,6 +61,8 @@ interface Edge {
   width: number;
   style: 'solid' | 'dashed' | 'dotted';
   animated: boolean;
+  bidirectional: boolean;
+  bounce: boolean;
   curvature: number;
   isVisible: boolean;
 }

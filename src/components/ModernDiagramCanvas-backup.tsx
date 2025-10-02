@@ -57,6 +57,8 @@ interface Edge {
   width: number;
   style: 'solid' | 'dashed' | 'dotted';
   animated: boolean;
+  bidirectional: boolean;
+  bounce: boolean;
   curvature: number;
   arrowSize: number;
   isVisible: boolean;
@@ -467,10 +469,12 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               const processedEdges = project.data.edges.map((edge) => ({
                 ...edge,
                 isVisible: true, // KEY FIX: Ensure edges are visible
-                width: edge.width || 2,
-                style: edge.style || 'solid',
-                animated: edge.animated || false,
-                curvature: edge.curvature || 0.5
+                width: edge.width ?? 2,
+                style: edge.style ?? 'solid',
+                animated: edge.animated ?? false,
+                bidirectional: edge.bidirectional ?? false,
+                bounce: edge.bounce ?? false,
+                curvature: edge.curvature ?? 0.5
               })) as Edge[];
 
               setEdges(processedEdges);
@@ -1582,6 +1586,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       width: 2,
       style: 'solid',
       animated: false,
+      bidirectional: false,
+      bounce: false,
       curvature: 0.3,
       arrowSize: 24,
       isVisible: true
