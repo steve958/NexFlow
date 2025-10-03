@@ -1,0 +1,91 @@
+
+> nexflow@0.1.0 build
+> next build --turbopack
+
+   ▲ Next.js 15.5.3 (Turbopack)
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Finished writing to disk in 55ms
+ ✓ Compiled successfully in 16.6s
+   Linting and checking validity of types ...
+
+./src/components/CustomNodeBuilder.tsx
+115:6  Warning: React Hook useCallback has a missing dependency: 'handleReset'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/ModernDiagramCanvas-backup.tsx
+771:6  Warning: React Hook useCallback has a missing dependency: 'autoSaveToFirestore'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1064:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1170:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1393:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1521:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1800:6  Warning: React Hook useEffect has a missing dependency: 'history.length'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1836:6  Warning: React Hook useEffect has a missing dependency: 'history.length'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2634:6  Warning: React Hook useCallback has a missing dependency: 'isDark'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2695:6  Warning: React Hook useCallback has missing dependencies: 'getPacketPosition' and 'getVisibleEdges'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+4538:21  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+4546:21  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+4561:21  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+4648:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+4683:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+5756:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/ModernDiagramCanvas.tsx
+799:6  Warning: React Hook useCallback has a missing dependency: 'autoSaveToFirestore'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1171:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1277:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1500:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1628:6  Warning: React Hook useCallback has a missing dependency: 'showNotification'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1930:6  Warning: React Hook useEffect has a missing dependency: 'history.length'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+1966:6  Warning: React Hook useEffect has a missing dependency: 'history.length'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2840:6  Warning: React Hook useCallback has a missing dependency: 'isDark'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+2959:6  Warning: React Hook useCallback has missing dependencies: 'getPacketPosition' and 'getVisibleEdges'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+5220:21  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+5228:21  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+5243:21  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+5335:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+5369:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+6463:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/hooks/useAnimationManager.ts
+240:6  Warning: React Hook useCallback has unnecessary dependencies: 'createAnimationPath' and 'transformCoordinates'. Either exclude them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/useEdgeAnimations.ts
+28:11  Warning: 'getNodes' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+28:21  Warning: 'getEdges' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+
+./src/hooks/useSimpleAnimations.ts
+64:13  Warning: 'currentTime' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+170:6  Warning: React Hook useCallback has a missing dependency: 'animationIntervals'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/lib/exportUtils.ts
+479:63  Warning: 'options' is defined but never used.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+ ⚠ Using edge runtime on a page currently disables static generation for that page
+   Generating static pages (0/5) ...
+   Generating static pages (1/5) 
+   Generating static pages (2/5) 
+   Generating static pages (3/5) 
+ ✓ Generating static pages (5/5)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                         Size  First Load JS
+┌ ○ /                            93.6 kB         389 kB
+├ ○ /_not-found                      0 B         115 kB
+├ ƒ /app/[scene]                  550 kB         845 kB
+├ ƒ /apple-icon                      0 B            0 B
+└ ƒ /icon                            0 B            0 B
++ First Load JS shared by all     133 kB
+  ├ chunks/7880f8283a6f3daf.js   59.2 kB
+  ├ chunks/8082ab48faca5ea1.js   17.2 kB
+  ├ chunks/ac53fd1a3fe97e06.js   20.3 kB
+  ├ chunks/a87346a53ab4742d.css  18.3 kB
+  └ other shared chunks (total)  18.1 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -18,7 +18,6 @@ import { createOrUpdateUserProfile, updateUserDisplayName, updateUserBio, getUse
 import { getUserActivities, formatActivityTime, logUserActivity } from "@/lib/activityStorage";
 import { ACTIVITY_DISPLAY_CONFIG, UserActivity } from "@/lib/activityTypes";
 import { PageTransition } from "@/components/PageTransition";
-import { motion } from "framer-motion";
 
 function Dashboard() {
   const { isDark } = useCanvasTheme();
@@ -39,6 +38,8 @@ function Dashboard() {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isLoadingUserData, setIsLoadingUserData] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -81,6 +82,7 @@ function Dashboard() {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      setIsLoadingUserData(true);
 
       if (currentUser) {
         // Load or create user profile
@@ -113,6 +115,8 @@ function Dashboard() {
           }
         } catch (error) {
           console.error('Error loading user profile:', error);
+        } finally {
+          setIsLoadingUserData(false);
         }
       } else {
         setUserProfile(null);
@@ -120,6 +124,7 @@ function Dashboard() {
         setUserActivities([]);
         setNewDisplayName('');
         setNewBio('');
+        setIsLoadingUserData(false);
       }
     });
 
@@ -166,6 +171,7 @@ function Dashboard() {
       refreshActivities();
     }
 
+    setIsNavigating(true);
     router.push(`/app/${projectId}`); // Navigate to new project
   };
 
@@ -178,6 +184,7 @@ function Dashboard() {
       refreshActivities();
     }
 
+    setIsNavigating(true);
     router.push(`/app/${projectId}`); // Navigate to project created from template
   };
 
@@ -223,6 +230,7 @@ function Dashboard() {
           refreshActivities();
         }
 
+        setIsNavigating(true);
         router.push(`/app/${duplicatedProject.id}`); // Navigate to duplicated project
       }
     } catch (error) {
@@ -370,11 +378,30 @@ function Dashboard() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col lg:flex-row ${
-      isDark
-        ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
-        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-    }`}>
+    <>
+      {/* Navigation Loading Overlay */}
+      {isNavigating && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className={`p-6 rounded-2xl ${
+            isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
+          } shadow-2xl`}>
+            <div className="flex items-center gap-4">
+              <div className={`w-8 h-8 border-4 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin ${
+                isDark ? 'border-t-blue-400' : 'border-t-blue-600'
+              }`}></div>
+              <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Opening project...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`min-h-screen flex flex-col lg:flex-row ${
+        isDark
+          ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
+          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+      }`}>
       {/* Left Sidebar - Navigation & Branding */}
       <div className={`w-full lg:w-80 flex flex-col ${
         isDark
@@ -557,9 +584,24 @@ function Dashboard() {
                 </div>
               </div>
 
+              {/* Loading Skeleton */}
+              {isLoadingUserData && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className={`p-6 rounded-2xl animate-pulse ${
+                      isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-200/50 border border-gray-300'
+                    }`}>
+                      <div className={`h-5 rounded mb-3 w-1/2 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                      <div className={`h-4 rounded w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Quick Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
-                <Link
+              {!isLoadingUserData && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
+                  <Link
                   href="/app/demo"
                   onClick={handleDemoClick}
                   className={`p-6 rounded-2xl transition-all transform hover:scale-105 group shadow-xl hover:shadow-2xl ${
@@ -644,6 +686,7 @@ function Dashboard() {
                   </p>
                 </button>
               </div>
+              )}
 
               {/* Projects Section */}
               <div className={`rounded-3xl border shadow-2xl ${
@@ -704,7 +747,22 @@ function Dashboard() {
 
                 {/* Projects Grid/List */}
                 <div className="p-6">
-                  {viewMode === 'grid' ? (
+                  {isLoadingUserData ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className={`rounded-2xl overflow-hidden border animate-pulse ${
+                          isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-200/50 border-gray-300'
+                        }`}>
+                          <div className={`aspect-video ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                          <div className="p-5 space-y-3">
+                            <div className={`h-5 rounded w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                            <div className={`h-4 rounded w-full ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                            <div className={`h-4 rounded w-5/6 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                       {filteredProjects.map((project) => (
                         <div key={project.id} className={`group rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-all duration-300 relative backdrop-blur-md hover:-translate-y-1 ${
@@ -942,7 +1000,29 @@ function Dashboard() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+              {isLoadingUserData ? (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+                  <div className={`lg:col-span-2 rounded-3xl border shadow-2xl animate-pulse ${
+                    isDark ? 'bg-gray-900/50 border-gray-700' : 'bg-white/80 border-gray-200'
+                  }`}>
+                    <div className="p-6 space-y-6">
+                      <div className={`h-24 w-24 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                      <div className={`h-6 rounded w-1/2 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                      <div className={`h-4 rounded w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                    </div>
+                  </div>
+                  <div className="space-y-6">
+                    <div className={`p-6 rounded-2xl animate-pulse ${
+                      isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-white/80 border border-gray-200'
+                    }`}>
+                      <div className={`h-4 rounded mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                      <div className={`h-3 rounded mb-2 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                      <div className={`h-3 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                 {/* Profile Info */}
                 <div className={`lg:col-span-2 rounded-3xl border shadow-2xl ${
                   isDark
@@ -960,9 +1040,11 @@ function Dashboard() {
                     <div className="flex items-center gap-6">
                       {userProfile?.photoURL ? (
                         <div className="w-24 h-24 rounded-full overflow-hidden relative bg-gray-200">
-                          <img
+                          <Image
                             src={userProfile.photoURL}
                             alt={userProfile.displayName}
+                            width={96}
+                            height={96}
                             className="absolute inset-0 w-full h-full object-cover"
                           />
                         </div>
@@ -1151,6 +1233,7 @@ function Dashboard() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
 
@@ -1175,7 +1258,19 @@ function Dashboard() {
                   : 'bg-white/80 border-gray-200 backdrop-blur-sm'
               }`}>
                 <div className="p-6">
-                  {userActivities.length > 0 ? (
+                  {isLoadingUserData ? (
+                    <div className="space-y-6">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex items-start gap-4 animate-pulse">
+                          <div className={`w-10 h-10 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                          <div className="flex-1 space-y-2">
+                            <div className={`h-4 rounded w-3/4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                            <div className={`h-3 rounded w-1/4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : userActivities.length > 0 ? (
                     <div className="space-y-6">
                       {userActivities.map((activity) => {
                         const config = ACTIVITY_DISPLAY_CONFIG[activity.action];
@@ -1309,16 +1404,19 @@ function Dashboard() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
 export default function Home() {
   return (
     <CanvasThemeProvider>
-      <AuthGate>
-        <Dashboard />
-      </AuthGate>
+      <PageTransition>
+        <AuthGate>
+          <Dashboard />
+        </AuthGate>
+      </PageTransition>
     </CanvasThemeProvider>
   );
 }

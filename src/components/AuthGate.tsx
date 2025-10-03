@@ -7,21 +7,13 @@ import { useCanvasTheme } from "./CanvasThemeProvider";
 import { CanvasThemeToggle } from "./CanvasThemeToggle";
 import { ArrowRight, CheckCircle, Layers, Activity, Download } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
-import { motion } from "framer-motion";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { isDark } = useCanvasTheme();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
     const auth = getFirebaseAuth();
     if (!auth) {
       setLoading(false);
@@ -34,7 +26,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [mounted]);
+  }, []);
 
   const signInWithGoogle = async () => {
     const auth = getFirebaseAuth();
@@ -48,31 +40,9 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     }
   };
 
-  // Show loading during SSR
-  if (!mounted || loading) {
-    return (
-      <div className={`h-screen flex items-center justify-center ${
-        isDark
-          ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800'
-          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-      }`}>
-        <div className="text-center">
-          <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-6 ${
-            isDark ? 'border-blue-500' : 'border-indigo-500'
-          }`}></div>
-          <h2 className={`text-2xl font-semibold mb-3 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            Loading NexFlow
-          </h2>
-          <p className={`text-lg ${
-            isDark ? 'text-blue-200' : 'text-blue-600'
-          }`}>
-            Preparing your workspace...
-          </p>
-        </div>
-      </div>
-    );
+  // Show loading during auth check
+  if (loading) {
+    return <LoadingSpinner message="Loading NexFlow..." />;
   }
 
   // Show sign-in screen if not authenticated

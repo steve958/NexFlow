@@ -5,6 +5,14 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 export const metadata: Metadata = {
   title: "NexFlow",
   description: "Diagram & animate architectures",
+  icons: {
+    icon: [
+      { url: '/nexflow.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png', sizes: '64x64' }
+    ],
+    shortcut: '/nexflow.ico',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
