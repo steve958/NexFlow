@@ -17,6 +17,8 @@ import { getProjects, deleteProject, duplicateProject, getProjectStats, type Pro
 import { createOrUpdateUserProfile, updateUserDisplayName, updateUserBio, getUserStats, UserProfile, UserStats } from "@/lib/userStorage";
 import { getUserActivities, formatActivityTime, logUserActivity } from "@/lib/activityStorage";
 import { ACTIVITY_DISPLAY_CONFIG, UserActivity } from "@/lib/activityTypes";
+import { PageTransition } from "@/components/PageTransition";
+import { motion } from "framer-motion";
 
 function Dashboard() {
   const { isDark } = useCanvasTheme();
