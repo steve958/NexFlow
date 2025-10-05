@@ -5949,36 +5949,36 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
           {/* Templates Dialog */}
           {showTemplatesDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className={`rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] mx-4 ${
+            <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+              <div className={`rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] sm:max-h-[80vh] ${
                 isDark ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200/80'
               }`}>
-                <div className={`p-6 border-b ${
+                <div className={`p-3 sm:p-6 border-b ${
                   isDark ? 'border-gray-700' : 'border-gray-200'
                 }`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className={`text-xl font-semibold ${
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h2 className={`text-base sm:text-xl font-semibold truncate ${
                         isDark ? 'text-white' : 'text-gray-900'
                       }`}>Diagram Templates</h2>
-                      <p className={`text-sm ${
+                      <p className={`text-xs sm:text-sm truncate ${
                         isDark ? 'text-gray-300' : 'text-gray-600'
                       }`}>Start with a pre-built architecture pattern</p>
                     </div>
                     <button
                       onClick={() => setShowTemplatesDialog(false)}
-                      className={`p-2 rounded-lg transition-colors ${
+                      className={`p-1.5 sm:p-2 rounded-lg transition-colors flex-shrink-0 ${
                         isDark
                           ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
                           : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
                       }`}
                     >
-                      <X className="w-5 h-5" />
+                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
                 </div>
-                <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="p-3 sm:p-6 overflow-y-auto max-h-[calc(90vh-80px)] sm:max-h-[calc(80vh-120px)]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                     {DIAGRAM_TEMPLATES.map((template) => (
                       <div
                         key={template.id}
@@ -5990,28 +5990,28 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         onClick={() => loadTemplate(template.id)}
                       >
                         {/* Template Preview */}
-                        <div className={`h-32 p-4 flex items-center justify-center relative ${
+                        <div className={`h-24 sm:h-32 p-3 sm:p-4 flex items-center justify-center relative ${
                           isDark
                             ? 'bg-gradient-to-br from-purple-900/20 to-blue-900/20'
                             : 'bg-gradient-to-br from-purple-50 to-blue-50'
                         }`}>
                           <div className="text-center">
-                            <div className={`w-16 h-16 mx-auto rounded-lg flex items-center justify-center mb-2 ${
+                            <div className={`w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-lg flex items-center justify-center mb-2 ${
                               isDark ? 'bg-purple-800/50' : 'bg-purple-100'
                             }`}>
-                              {template.category === 'Architecture' && <Server className={`w-8 h-8 ${
+                              {template.category === 'Architecture' && <Server className={`w-6 h-6 sm:w-8 sm:h-8 ${
                                 isDark ? 'text-purple-400' : 'text-purple-600'
                               }`} />}
-                              {template.category === 'Cloud' && <Cloud className={`w-8 h-8 ${
+                              {template.category === 'Cloud' && <Cloud className={`w-6 h-6 sm:w-8 sm:h-8 ${
                                 isDark ? 'text-purple-400' : 'text-purple-600'
                               }`} />}
-                              {template.category === 'Network' && <Network className={`w-8 h-8 ${
+                              {template.category === 'Network' && <Network className={`w-6 h-6 sm:w-8 sm:h-8 ${
                                 isDark ? 'text-purple-400' : 'text-purple-600'
                               }`} />}
                             </div>
                           </div>
-                          <div className="absolute top-2 right-2">
-                            <span className={`px-2 py-1 text-xs rounded-full ${
+                          <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2">
+                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-full ${
                               isDark
                                 ? 'bg-purple-800/50 text-purple-300'
                                 : 'bg-purple-100 text-purple-700'
@@ -6022,23 +6022,23 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         </div>
 
                         {/* Template Info */}
-                        <div className="p-4">
-                          <h3 className={`font-semibold mb-2 ${
+                        <div className="p-3 sm:p-4">
+                          <h3 className={`text-sm sm:text-base font-semibold mb-1 sm:mb-2 ${
                             isDark ? 'text-white' : 'text-gray-900'
                           }`}>{template.name}</h3>
-                          <p className={`text-sm mb-3 ${
+                          <p className={`text-xs sm:text-sm mb-2 sm:mb-3 line-clamp-2 ${
                             isDark ? 'text-gray-300' : 'text-gray-600'
                           }`}>{template.description}</p>
 
-                          <div className={`flex items-center justify-between text-xs ${
+                          <div className={`flex items-center justify-between text-[10px] sm:text-xs ${
                             isDark ? 'text-gray-400' : 'text-gray-500'
                           }`}>
-                            <div className="flex items-center gap-3">
-                              <span>{template.nodes.length} nodes</span>
-                              <span>{template.edges.length} connections</span>
-                              {template.groups.length > 0 && <span>{template.groups.length} groups</span>}
+                            <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
+                              <span className="whitespace-nowrap">{template.nodes.length} nodes</span>
+                              <span className="whitespace-nowrap">{template.edges.length} connections</span>
+                              {template.groups.length > 0 && <span className="whitespace-nowrap">{template.groups.length} groups</span>}
                             </div>
-                            <button className={`px-3 py-1 rounded transition-colors ${
+                            <button className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm transition-colors flex-shrink-0 ${
                               isDark
                                 ? 'bg-purple-600 hover:bg-purple-700 text-white'
                                 : 'bg-purple-600 hover:bg-purple-700 text-white'
@@ -6052,17 +6052,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                   </div>
 
                   {/* Custom Section */}
-                  <div className={`mt-8 p-4 rounded-lg border ${
+                  <div className={`mt-4 sm:mt-8 p-3 sm:p-4 rounded-lg border ${
                     isDark
                       ? 'bg-gray-800/50 border-gray-700'
                       : 'bg-gray-50 border-gray-200'
                   }`}>
-                    <h3 className={`text-lg font-semibold mb-3 ${
+                    <h3 className={`text-base sm:text-lg font-semibold mb-2 sm:mb-3 ${
                       isDark ? 'text-white' : 'text-gray-900'
                     }`}>Create Your Own</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div
-                        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+                        className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer ${
                           isDark
                             ? 'border-gray-600 hover:border-purple-500 hover:bg-purple-900/20'
                             : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50'
@@ -6082,29 +6082,29 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           setShowTemplatesDialog(false);
                         }}
                       >
-                        <Plus className={`w-8 h-8 mx-auto mb-2 ${
+                        <Plus className={`w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 ${
                           isDark ? 'text-gray-500' : 'text-gray-400'
                         }`} />
-                        <h4 className={`font-medium ${
+                        <h4 className={`text-sm sm:text-base font-medium ${
                           isDark ? 'text-white' : 'text-gray-900'
                         }`}>Blank Canvas</h4>
-                        <p className={`text-sm ${
+                        <p className={`text-xs sm:text-sm ${
                           isDark ? 'text-gray-300' : 'text-gray-600'
                         }`}>Start from scratch</p>
                       </div>
 
-                      <div className={`border rounded-lg p-6 text-center ${
+                      <div className={`border rounded-lg p-4 sm:p-6 text-center ${
                         isDark
                           ? 'border-gray-700 bg-gray-800'
                           : 'border-gray-200 bg-white'
                       }`}>
-                        <FileJson className={`w-8 h-8 mx-auto mb-2 ${
+                        <FileJson className={`w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 ${
                           isDark ? 'text-blue-400' : 'text-blue-500'
                         }`} />
-                        <h4 className={`font-medium ${
+                        <h4 className={`text-sm sm:text-base font-medium ${
                           isDark ? 'text-white' : 'text-gray-900'
                         }`}>Import JSON</h4>
-                        <p className={`text-sm mb-3 ${
+                        <p className={`text-xs sm:text-sm mb-3 ${
                           isDark ? 'text-gray-300' : 'text-gray-600'
                         }`}>Load exported diagram</p>
                         <input

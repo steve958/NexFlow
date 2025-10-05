@@ -1223,12 +1223,6 @@ function Dashboard() {
                         </span>
                         <CanvasThemeToggle />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Auto-save
-                        </span>
-                        <input type="checkbox" defaultChecked className="rounded" />
-                      </div>
                     </div>
                   </div>
                 </div>
