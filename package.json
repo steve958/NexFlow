@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
+    "@vercel/analytics": "^1.5.0",
     "clsx": "^2.1.1",
     "elkjs": "^0.11.0",
     "firebase": "^12.3.0",
