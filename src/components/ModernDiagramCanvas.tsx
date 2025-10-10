@@ -123,7 +123,7 @@ interface FlowConfig {
   speed: number;
   trail: boolean;
   loop: boolean; // if true, packet loops continuously
-  bidirectional: boolean; // if true, packet returns in opposite direction after reaching end
+  return: boolean; // if true, packet returns to start in reverse after reaching end
   enabled: boolean;
 }
 
@@ -2764,6 +2764,43 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       if (!flow) return;
 
       if (isInViewport(flowPacket.x - flow.packetSize, flowPacket.y - flow.packetSize, flow.packetSize * 2, flow.packetSize * 2)) {
+        // If packet is waiting at a node, draw processing animation
+        if (flowPacket.isWaiting) {
+          const now = Date.now();
+          const waitDuration = now - flowPacket.waitStartTime;
+
+          // Pulsing effect - cycle every 1 second
+          const pulseProgress = (waitDuration % 1000) / 1000;
+          const pulseScale = 1 + Math.sin(pulseProgress * Math.PI * 2) * 0.3; // Scale between 0.7 and 1.3
+
+          // Rotating ring effect
+          const rotationAngle = (waitDuration / 1000) * Math.PI * 2; // One rotation per second
+
+          ctx.save();
+          ctx.translate(flowPacket.x, flowPacket.y);
+
+          // Draw outer pulsing ring
+          ctx.beginPath();
+          ctx.arc(0, 0, flow.packetSize * 1.5 * pulseScale, 0, Math.PI * 2);
+          ctx.strokeStyle = flow.packetColor + '40'; // Semi-transparent
+          ctx.lineWidth = 2 / viewport.zoom;
+          ctx.stroke();
+
+          // Draw rotating arc segments
+          for (let i = 0; i < 3; i++) {
+            const startAngle = rotationAngle + (i * Math.PI * 2 / 3);
+            const endAngle = startAngle + Math.PI / 3;
+
+            ctx.beginPath();
+            ctx.arc(0, 0, flow.packetSize * 1.2, startAngle, endAngle);
+            ctx.strokeStyle = flow.packetColor + '80'; // More opaque
+            ctx.lineWidth = 2 / viewport.zoom;
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+
         // Create a packet-like object for rendering
         const packetForRendering: Packet = {
           id: flowPacket.id,
@@ -3038,14 +3075,15 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
             // Check if we've reached the end of the path
             if (flowPacket.direction === 'forward' && nextIndex >= flow.path.length) {
-              if (flow.bidirectional) {
-                // Start moving backward from the last node
+              if (flow.return) {
+                // Start returning backward from the last node
                 updatedFlows.push({
                   ...flowPacket,
                   direction: 'reverse',
-                  currentPathIndex: flow.path.length - 2, // Move to second-to-last node
+                  currentPathIndex: flow.path.length - 1, // Stay at last node, will move to second-to-last
                   progress: 0,
-                  isWaiting: false
+                  isWaiting: true,
+                  waitStartTime: now
                 });
               } else if (flow.loop) {
                 // Loop back to start and wait at first node
@@ -3066,17 +3104,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               // Otherwise packet completes and is removed
               return;
             } else if (flowPacket.direction === 'reverse' && nextIndex < 0) {
-              if (flow.loop) {
-                // Loop back to end and wait at last node
-                const endNode = nodes.find(n => n.id === flow.path[flow.path.length - 1].nodeId);
-                if (endNode) {
+              // Reached back to start - packet completes
+              // If loop is enabled with return, restart from beginning
+              if (flow.loop && flow.return) {
+                const startNode = nodes.find(n => n.id === flow.path[0].nodeId);
+                if (startNode) {
                   updatedFlows.push({
                     ...flowPacket,
-                    currentPathIndex: flow.path.length - 1,
-                    direction: 'forward',
+                    currentPathIndex: 0,
                     progress: 0,
-                    x: endNode.x + endNode.width / 2,
-                    y: endNode.y + endNode.height / 2,
+                    x: startNode.x + startNode.width / 2,
+                    y: startNode.y + startNode.height / 2,
+                    direction: 'forward',
                     isWaiting: true,
                     waitStartTime: now
                   });
@@ -4700,7 +4739,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         speed: 0.02,
                         trail: false,
                         loop: false,
-                        bidirectional: false,
+                        return: false,
                         enabled: false
                       };
                       setFlowConfigs(prev => [...prev, newFlow]);
@@ -4740,11 +4779,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                         : isDark ? 'border-white/20 bg-white/5' : 'border-gray-200 bg-gray-50'
                     }`}
                   >
-                    <div
-                      className="flex items-center justify-between mb-3 cursor-pointer"
-                      onClick={() => setSelectedFlow(selectedFlow === flow.id ? null : flow.id)}
-                    >
-                      <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
                         <input
                           type="text"
                           value={flow.label}
@@ -4758,7 +4794,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           {flow.path.length} nodes in path
                         </div>
                       </div>
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
                         <button
                           onClick={() => setFlowConfigs(prev => prev.map(f =>
                             f.id === flow.id ? { ...f, enabled: !f.enabled } : f
@@ -4788,8 +4824,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                       </div>
                     </div>
 
-                    {selectedFlow === flow.id && (
-                      <div onClick={(e) => e.stopPropagation()}>
+                    {!flow.enabled && (
+                      <div>
                         <div className="space-y-3 mt-3 pt-3 border-t border-white/10">
                           {/* Path Builder */}
                           <div>
@@ -4989,18 +5025,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           </div>
 
                           <div className="flex items-center justify-between">
-                            <label className={`text-xs font-semibold ${getThemeStyles().textBold}`}>Bidirectional</label>
+                            <label className={`text-xs font-semibold ${getThemeStyles().textBold}`}>Return</label>
                             <button
                               onClick={() => setFlowConfigs(prev => prev.map(f =>
-                                f.id === flow.id ? { ...f, bidirectional: !f.bidirectional } : f
+                                f.id === flow.id ? { ...f, return: !f.return } : f
                               ))}
                               className={`px-3 py-1 rounded-lg text-xs transition-all font-medium ${
-                                flow.bidirectional
+                                flow.return
                                   ? isDark ? 'bg-teal-500/30 text-teal-200 border border-teal-400/50' : 'bg-blue-500/20 text-blue-700 border border-blue-300'
                                   : isDark ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
                               }`}
                             >
-                              {flow.bidirectional ? 'On' : 'Off'}
+                              {flow.return ? 'On' : 'Off'}
                             </button>
                           </div>
                         </div>
