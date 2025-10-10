@@ -84,6 +84,25 @@ interface AnimationConfig {
   frameOffset?: number;
 }
 
+interface FlowPathNode {
+  nodeId: string;
+  delay: number;
+}
+
+interface FlowConfig {
+  id: string;
+  label: string;
+  path: FlowPathNode[];
+  packetColor: string;
+  packetSize: number;
+  packetShape: 'circle' | 'square' | 'diamond' | 'triangle';
+  speed: number;
+  trail: boolean;
+  loop: boolean;
+  return: boolean;
+  enabled: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -98,6 +117,7 @@ export interface Project {
     groups: NodeGroup[];
     viewport: Viewport;
     animationConfigs?: Record<string, AnimationConfig>;
+    flowConfigs?: FlowConfig[];
   };
   tags: string[];
   category: string;
@@ -378,7 +398,7 @@ export const duplicateProject = async (id: string, newName?: string): Promise<Pr
 // Save project data (nodes, edges, groups, viewport)
 export const saveProjectData = async (
   id: string,
-  data: { nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; viewport: Viewport; animationConfigs?: Record<string, AnimationConfig> }
+  data: { nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; viewport: Viewport; animationConfigs?: Record<string, AnimationConfig>; flowConfigs?: FlowConfig[] }
 ): Promise<boolean> => {
   try {
     const project = await updateProject(id, { data });

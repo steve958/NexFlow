@@ -144,6 +144,7 @@ interface DiagramState {
   edges: Edge[];
   groups: NodeGroup[];
   animationConfigs: Record<string, AnimationConfig>;
+  flowConfigs?: FlowConfig[];
 }
 
 interface ViewportState {
@@ -553,6 +554,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               setAnimationConfigs({});
             }
 
+            // Load flow configs from project data
+            if (project.data.flowConfigs && Array.isArray(project.data.flowConfigs)) {
+              setFlowConfigs(project.data.flowConfigs);
+            } else {
+              setFlowConfigs([]);
+            }
+
             // Switch to nodes panel when a project is loaded
             setActivePanel('nodes');
             // Reset viewport to ensure nodes are visible
@@ -857,12 +865,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
         edges,
         groups,
         viewport,
-        animationConfigs
+        animationConfigs,
+        flowConfigs
       });
     } catch (error) {
       console.error('Auto-save failed:', error);
     }
-  }, [projectId, nodes, edges, groups, viewport, animationConfigs]);
+  }, [projectId, nodes, edges, groups, viewport, animationConfigs, flowConfigs]);
 
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
@@ -875,7 +884,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       nodes: nodes,
       edges: edges,
       groups: groups,
-      animationConfigs: animationConfigs
+      animationConfigs: animationConfigs,
+      flowConfigs: flowConfigs
     };
 
     setHistory(prev => {
@@ -892,7 +902,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
     if (timeSinceLastSave > 1000) { // Only mark as unsaved if more than 1 second has passed since last save
       setHasUnsavedChanges(true);
     }
-  }, [nodes, edges, groups, animationConfigs, historyIndex]);
+  }, [nodes, edges, groups, animationConfigs, flowConfigs, historyIndex]);
 
   // Update ref to latest saveToHistory function
   saveToHistoryRef.current = saveToHistory;
@@ -906,6 +916,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       setEdges(prevState.edges);
       setGroups(prevState.groups || []);
       setAnimationConfigs(prevState.animationConfigs);
+      setFlowConfigs(prevState.flowConfigs || []);
       setHistoryIndex(prev => prev - 1);
     }
   }, [history, historyIndex]);
@@ -919,6 +930,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       setEdges(nextState.edges);
       setGroups(nextState.groups || []);
       setAnimationConfigs(nextState.animationConfigs);
+      setFlowConfigs(nextState.flowConfigs || []);
       setHistoryIndex(prev => prev + 1);
     }
   }, [history, historyIndex]);
@@ -3100,8 +3112,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     waitStartTime: now
                   });
                 }
+              } else {
+                // Flow completed without loop - disable the flow
+                setFlowConfigs(prev => prev.map(f =>
+                  f.id === flow.id ? { ...f, enabled: false } : f
+                ));
               }
-              // Otherwise packet completes and is removed
+              // Packet completes and is removed
               return;
             } else if (flowPacket.direction === 'reverse' && nextIndex < 0) {
               // Reached back to start - packet completes
@@ -3120,8 +3137,13 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     waitStartTime: now
                   });
                 }
+              } else {
+                // Flow completed return without loop - disable the flow
+                setFlowConfigs(prev => prev.map(f =>
+                  f.id === flow.id ? { ...f, enabled: false } : f
+                ));
               }
-              // Otherwise packet completes and is removed
+              // Packet completes and is removed
               return;
             } else {
               // Continue to next node - start moving from current node
@@ -3179,7 +3201,17 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               });
             } else {
               // Continue moving
-              const position = getPacketPosition(edge, newProgress);
+              // When in reverse, we need to traverse the edge backwards
+              // Check if we need to reverse the progress based on edge direction
+              let edgeProgress = newProgress;
+
+              // If going reverse and edge direction doesn't match our travel direction, invert progress
+              if (flowPacket.direction === 'reverse') {
+                // When returning, we go from target back to source, so invert the progress
+                edgeProgress = 1 - newProgress;
+              }
+
+              const position = getPacketPosition(edge, edgeProgress);
               if (position) {
                 updatedFlows.push({
                   ...flowPacket,
