@@ -2776,7 +2776,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       if (!flow) return;
 
       if (isInViewport(flowPacket.x - flow.packetSize, flowPacket.y - flow.packetSize, flow.packetSize * 2, flow.packetSize * 2)) {
-        // If packet is waiting at a node, draw processing animation
+        // If packet is waiting at a node, draw processing animation ONLY (not the packet)
         if (flowPacket.isWaiting) {
           const now = Date.now();
           const waitDuration = now - flowPacket.waitStartTime;
@@ -2811,25 +2811,26 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           }
 
           ctx.restore();
+          // Don't render the packet itself when waiting - only show processing animation
+        } else {
+          // Only render the packet when it's moving (not waiting)
+          const packetForRendering: Packet = {
+            id: flowPacket.id,
+            x: flowPacket.x,
+            y: flowPacket.y,
+            progress: flowPacket.progress,
+            color: flow.packetColor,
+            size: flow.packetSize,
+            shape: flow.packetShape,
+            edgeId: '', // Not used for flow packets
+            trail: flow.trail,
+            speed: flow.speed,
+            direction: flowPacket.direction,
+            isBouncing: false,
+            hasBouncedOnce: false
+          };
+          drawPacket(ctx, packetForRendering);
         }
-
-        // Create a packet-like object for rendering
-        const packetForRendering: Packet = {
-          id: flowPacket.id,
-          x: flowPacket.x,
-          y: flowPacket.y,
-          progress: flowPacket.progress,
-          color: flow.packetColor,
-          size: flow.packetSize,
-          shape: flow.packetShape,
-          edgeId: '', // Not used for flow packets
-          trail: flow.trail,
-          speed: flow.speed,
-          direction: flowPacket.direction,
-          isBouncing: false,
-          hasBouncedOnce: false
-        };
-        drawPacket(ctx, packetForRendering);
       }
     });
 
@@ -3089,14 +3090,19 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             if (flowPacket.direction === 'forward' && nextIndex >= flow.path.length) {
               if (flow.return) {
                 // Start returning backward from the last node
-                updatedFlows.push({
-                  ...flowPacket,
-                  direction: 'reverse',
-                  currentPathIndex: flow.path.length - 1, // Stay at last node, will move to second-to-last
-                  progress: 0,
-                  isWaiting: true,
-                  waitStartTime: now
-                });
+                const lastNode = nodes.find(n => n.id === flow.path[flow.path.length - 1].nodeId);
+                if (lastNode) {
+                  updatedFlows.push({
+                    ...flowPacket,
+                    direction: 'reverse',
+                    currentPathIndex: flow.path.length - 1, // Stay at last node, will move to second-to-last
+                    progress: 0,
+                    x: lastNode.x + lastNode.width / 2,
+                    y: lastNode.y + lastNode.height / 2,
+                    isWaiting: true,
+                    waitStartTime: now
+                  });
+                }
               } else if (flow.loop) {
                 // Loop back to start and wait at first node
                 const startNode = nodes.find(n => n.id === flow.path[0].nodeId);
@@ -3147,12 +3153,46 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               return;
             } else {
               // Continue to next node - start moving from current node
-              updatedFlows.push({
-                ...flowPacket,
-                // Keep currentPathIndex at current node, packet will move toward nextIndex
-                progress: 0,
-                isWaiting: false
-              });
+              // Position packet at the edge connection point (start of edge)
+              const currentNodeId = flow.path[flowPacket.currentPathIndex].nodeId;
+              const targetNodeId = flow.path[nextIndex].nodeId;
+
+              // Find the edge to get the starting connection point
+              const edge = edges.find(e =>
+                (e.sourceId === currentNodeId && e.targetId === targetNodeId) ||
+                (e.sourceId === targetNodeId && e.targetId === currentNodeId)
+              );
+
+              if (edge) {
+                // Get the starting position from the edge at progress 0 (or 1 if reverse)
+                const initialProgress = flowPacket.direction === 'reverse' ? 1 : 0;
+                const position = getPacketPosition(edge, initialProgress);
+
+                if (position) {
+                  updatedFlows.push({
+                    ...flowPacket,
+                    // Keep currentPathIndex at current node, packet will move toward nextIndex
+                    progress: 0,
+                    x: position.x,
+                    y: position.y,
+                    isWaiting: false
+                  });
+                } else {
+                  // Fallback to current position
+                  updatedFlows.push({
+                    ...flowPacket,
+                    progress: 0,
+                    isWaiting: false
+                  });
+                }
+              } else {
+                // No edge found, keep at current position
+                updatedFlows.push({
+                  ...flowPacket,
+                  progress: 0,
+                  isWaiting: false
+                });
+              }
             }
           } else {
             // Still waiting
