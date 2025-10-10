@@ -108,6 +108,37 @@ interface NodeGroup {
   padding: number;
 }
 
+interface FlowPathNode {
+  nodeId: string;
+  delay: number; // delay in milliseconds before moving to next node
+}
+
+interface FlowConfig {
+  id: string;
+  label: string;
+  path: FlowPathNode[]; // ordered array of nodes to follow
+  packetColor: string;
+  packetSize: number;
+  packetShape: 'circle' | 'square' | 'diamond' | 'triangle';
+  speed: number;
+  trail: boolean;
+  loop: boolean; // if true, packet loops continuously
+  bidirectional: boolean; // if true, packet returns in opposite direction after reaching end
+  enabled: boolean;
+}
+
+interface FlowPacket {
+  id: string;
+  flowId: string;
+  currentPathIndex: number; // index in the path array
+  progress: number; // 0-1 progress along current edge
+  x: number;
+  y: number;
+  direction: 'forward' | 'reverse';
+  isWaiting: boolean; // waiting at a node due to delay
+  waitStartTime: number;
+}
+
 interface DiagramState {
   nodes: Node[];
   edges: Edge[];
@@ -442,6 +473,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
   // Groups state
   const [groups, setGroups] = useState<NodeGroup[]>([]);
+
+  // Flow state
+  const [flowConfigs, setFlowConfigs] = useState<FlowConfig[]>([]);
+  const [flowPackets, setFlowPackets] = useState<FlowPacket[]>([]);
+  const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
 
   // Load project data when projectId changes
   useEffect(() => {
@@ -2722,6 +2758,32 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       }
     });
 
+    // Draw flow packets
+    flowPackets.forEach(flowPacket => {
+      const flow = flowConfigs.find(f => f.id === flowPacket.flowId);
+      if (!flow) return;
+
+      if (isInViewport(flowPacket.x - flow.packetSize, flowPacket.y - flow.packetSize, flow.packetSize * 2, flow.packetSize * 2)) {
+        // Create a packet-like object for rendering
+        const packetForRendering: Packet = {
+          id: flowPacket.id,
+          x: flowPacket.x,
+          y: flowPacket.y,
+          progress: flowPacket.progress,
+          color: flow.packetColor,
+          size: flow.packetSize,
+          shape: flow.packetShape,
+          edgeId: '', // Not used for flow packets
+          trail: flow.trail,
+          speed: flow.speed,
+          direction: flowPacket.direction,
+          isBouncing: false,
+          hasBouncedOnce: false
+        };
+        drawPacket(ctx, packetForRendering);
+      }
+    });
+
     // Draw selection rectangles for multi-selected nodes (only visible ones)
     selectedNodes.forEach(nodeId => {
       const node = nodes.find(n => n.id === nodeId);
@@ -2837,7 +2899,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
     // Restore context
     ctx.restore();
-  }, [nodes, edges, groups, packets, selectedNode, selectedEdge, selectedNodes, selectedGroup, viewport, isConnecting, connectionStart, connectionPreview, drawNode, drawEdge, drawGroup, drawPacket, getVisibleNodes, getVisibleEdges, getVisibleGroups, isInViewport]);
+  }, [nodes, edges, groups, packets, flowPackets, flowConfigs, selectedNode, selectedEdge, selectedNodes, selectedGroup, viewport, isConnecting, connectionStart, connectionPreview, drawNode, drawEdge, drawGroup, drawPacket, getVisibleNodes, getVisibleEdges, getVisibleGroups, isInViewport]);
 
   // Animation loop
   const animate = useCallback(() => {
@@ -2954,9 +3016,189 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
       return updated;
     });
 
+    // Update flow packets
+    setFlowPackets(prev => {
+      const now = Date.now();
+      const updatedFlows: FlowPacket[] = [];
+
+      prev.forEach(flowPacket => {
+        const flow = flowConfigs.find(f => f.id === flowPacket.flowId);
+        if (!flow || !flow.enabled) return; // Skip if flow disabled
+
+        // Check if packet is waiting at a node
+        if (flowPacket.isWaiting) {
+          const waitDuration = now - flowPacket.waitStartTime;
+          const currentPathNode = flow.path[flowPacket.currentPathIndex];
+
+          if (waitDuration >= currentPathNode.delay) {
+            // Move to next node in path
+            const nextIndex = flowPacket.direction === 'forward'
+              ? flowPacket.currentPathIndex + 1
+              : flowPacket.currentPathIndex - 1;
+
+            // Check if we've reached the end of the path
+            if (flowPacket.direction === 'forward' && nextIndex >= flow.path.length) {
+              if (flow.bidirectional) {
+                // Start moving backward
+                updatedFlows.push({
+                  ...flowPacket,
+                  direction: 'reverse',
+                  currentPathIndex: flow.path.length - 1,
+                  progress: 0,
+                  isWaiting: false
+                });
+              } else if (flow.loop) {
+                // Loop back to start
+                const startNode = nodes.find(n => n.id === flow.path[0].nodeId);
+                if (startNode) {
+                  updatedFlows.push({
+                    ...flowPacket,
+                    currentPathIndex: 0,
+                    progress: 0,
+                    x: startNode.x + startNode.width / 2,
+                    y: startNode.y + startNode.height / 2,
+                    isWaiting: false
+                  });
+                }
+              }
+              // Otherwise packet completes and is removed
+              return;
+            } else if (flowPacket.direction === 'reverse' && nextIndex < 0) {
+              if (flow.loop) {
+                // Loop back to end
+                const endNode = nodes.find(n => n.id === flow.path[flow.path.length - 1].nodeId);
+                if (endNode) {
+                  updatedFlows.push({
+                    ...flowPacket,
+                    currentPathIndex: flow.path.length - 1,
+                    direction: 'forward',
+                    progress: 0,
+                    x: endNode.x + endNode.width / 2,
+                    y: endNode.y + endNode.height / 2,
+                    isWaiting: false
+                  });
+                }
+              }
+              // Otherwise packet completes and is removed
+              return;
+            } else {
+              // Continue to next node
+              updatedFlows.push({
+                ...flowPacket,
+                currentPathIndex: nextIndex,
+                progress: 0,
+                isWaiting: false
+              });
+            }
+          } else {
+            // Still waiting
+            updatedFlows.push(flowPacket);
+          }
+        } else {
+          // Packet is moving along edge
+          const currentIndex = flowPacket.currentPathIndex;
+          const nextIndex = flowPacket.direction === 'forward' ? currentIndex + 1 : currentIndex - 1;
+
+          if (nextIndex < 0 || nextIndex >= flow.path.length) {
+            updatedFlows.push(flowPacket);
+            return;
+          }
+
+          const sourceNodeId = flow.path[currentIndex].nodeId;
+          const targetNodeId = flow.path[nextIndex].nodeId;
+
+          const sourceNode = nodes.find(n => n.id === sourceNodeId);
+          const targetNode = nodes.find(n => n.id === targetNodeId);
+
+          if (!sourceNode || !targetNode) {
+            return; // Skip if nodes not found
+          }
+
+          // Find edge between current and next node
+          const edge = edges.find(e =>
+            (e.sourceId === sourceNodeId && e.targetId === targetNodeId) ||
+            (e.sourceId === targetNodeId && e.targetId === sourceNodeId)
+          );
+
+          if (edge) {
+            // Move packet along the edge
+            const newProgress = flowPacket.progress + flow.speed;
+
+            if (newProgress >= 1) {
+              // Reached target node, start waiting
+              updatedFlows.push({
+                ...flowPacket,
+                progress: 1,
+                x: targetNode.x + targetNode.width / 2,
+                y: targetNode.y + targetNode.height / 2,
+                isWaiting: true,
+                waitStartTime: now
+              });
+            } else {
+              // Continue moving
+              const position = getPacketPosition(edge, newProgress);
+              if (position) {
+                updatedFlows.push({
+                  ...flowPacket,
+                  progress: newProgress,
+                  x: position.x,
+                  y: position.y
+                });
+              } else {
+                updatedFlows.push(flowPacket);
+              }
+            }
+          } else {
+            // No edge found, teleport to next node (direct path)
+            updatedFlows.push({
+              ...flowPacket,
+              x: targetNode.x + targetNode.width / 2,
+              y: targetNode.y + targetNode.height / 2,
+              isWaiting: true,
+              waitStartTime: now
+            });
+          }
+        }
+      });
+
+      // Add new flow packets for newly enabled flows
+      flowConfigs.forEach(flow => {
+        if (flow.enabled && flow.path.length >= 2) {
+          // Check if this flow already has active packets
+          const hasActivePacket = prev.some(p => p.flowId === flow.id);
+
+          if (!hasActivePacket) {
+            // Start new packet at first node
+            const startNodeId = flow.path[0].nodeId;
+            const startNode = nodes.find(n => n.id === startNodeId);
+
+            if (startNode) {
+              updatedFlows.push({
+                id: `flow-packet-${flow.id}-${Date.now()}`,
+                flowId: flow.id,
+                currentPathIndex: 0,
+                progress: 0,
+                x: startNode.x + startNode.width / 2,
+                y: startNode.y + startNode.height / 2,
+                direction: 'forward',
+                isWaiting: true,
+                waitStartTime: now
+              });
+            }
+          }
+        }
+      });
+
+      // Remove packets for disabled flows
+      return updatedFlows.filter(fp => {
+        const flow = flowConfigs.find(f => f.id === fp.flowId);
+        return flow && flow.enabled;
+      });
+    });
+
     render();
     animationFrameRef.current = requestAnimationFrame(animate);
-  }, [render, edges, animationConfigs]);
+  }, [render, edges, animationConfigs, flowConfigs, nodes]);
 
   // Start animation loop
   useEffect(() => {
@@ -3679,7 +3921,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               { id: 'animations', label: 'Animate', icon: Play },
               { id: 'nodes', label: 'Node', icon: Circle },
               { id: 'edges', label: 'Edge', icon: Settings },
-              { id: 'controls', label: 'Help', icon: HelpCircle }
+              { id: 'controls', label: 'Flow', icon: Workflow }
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -4433,98 +4675,301 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             </div>
           )}
 
-          {/* Controls Panel */}
+          {/* Flow Panel */}
           {activePanel === 'controls' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Keyboard Shortcuts</h3>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${getThemeStyles().textOnColor}`}>Canvas Navigation</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Pan canvas</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Click + drag</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Zoom in/out</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Mouse wheel</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Reset view</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + 0</kbd>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${getThemeStyles().textOnColor}`}>Node Operations</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Duplicate selection</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + D</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Delete selection</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Delete</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Group nodes</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + G</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Multi-select</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + click</kbd>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${isDark ? 'text-teal-300' : 'text-blue-600'}`}>File Operations</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Export JSON</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + S</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Undo</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + Z</kbd>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Redo</span>
-                      <kbd className={`px-2 py-1 rounded-lg text-xs ${getThemeStyles().background} ${getThemeStyles().border} ${getThemeStyles().textBold}`}>Ctrl + Y</kbd>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className={`text-xs font-bold mb-2 uppercase tracking-wide ${isDark ? 'text-teal-300' : 'text-blue-600'}`}>Mouse Controls</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Create connection</span>
-                      <span className={`${getThemeStyles().textMuted} text-xs`}>Click node handles</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Add nodes</span>
-                      <span className={`${getThemeStyles().textMuted} text-xs`}>Drag from sidebar</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`${getThemeStyles().textSecondary}`}>Move nodes</span>
-                      <span className={`${getThemeStyles().textMuted} text-xs`}>Click and drag</span>
-                    </div>
-                  </div>
+                <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Flow Paths</h3>
+                <div className="flex items-center gap-2">
+                  <div className={`text-xs font-medium ${getThemeStyles().textMuted}`}>{flowPackets.length} active</div>
+                  <button
+                    onClick={() => {
+                      const newFlow: FlowConfig = {
+                        id: `flow-${Date.now()}`,
+                        label: `Flow ${flowConfigs.length + 1}`,
+                        path: [],
+                        packetColor: '#3b82f6',
+                        packetSize: 8,
+                        packetShape: 'circle',
+                        speed: 0.02,
+                        trail: false,
+                        loop: false,
+                        bidirectional: false,
+                        enabled: false
+                      };
+                      setFlowConfigs(prev => [...prev, newFlow]);
+                      setSelectedFlow(newFlow.id);
+                    }}
+                    className={`p-1.5 rounded-lg transition-all hover:scale-110 ${getThemeStyles().textOnColor} ${isDark ? 'hover:bg-teal-500/20' : 'hover:bg-blue-100'}`}
+                    title="Create New Flow"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
-              <div className={`p-3 bg-gradient-to-br rounded-xl backdrop-blur-sm ${isDark ? 'from-teal-500/20 to-blue-500/20 border border-teal-400/30' : 'from-blue-500/10 to-indigo-500/10 border border-blue-400/30'}`}>
-                <div className="flex items-start gap-2">
-                  <HelpCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isDark ? 'text-teal-300' : 'text-blue-600'}`} />
-                  <div className={`text-xs ${getThemeStyles().textBold}`}>
-                    <strong>Pro Tip:</strong> Press <kbd className={`px-1 py-0.5 rounded border text-xs ${isDark ? 'bg-teal-500/30 text-teal-300 border-teal-400/30' : 'bg-blue-500/20 text-blue-700 border-blue-400/40'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded border text-xs ${isDark ? 'bg-teal-500/30 text-teal-300 border-teal-400/30' : 'bg-blue-500/20 text-blue-700 border-blue-400/40'}`}>F1</kbd> anytime to open the full help dialog with more detailed instructions.
-                  </div>
+              {nodes.length === 0 && (
+                <div className={`text-center py-6 ${getThemeStyles().textMuted}`}>
+                  <Workflow className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No nodes available</p>
+                  <p className="text-xs">Add nodes to create flow paths</p>
                 </div>
+              )}
+
+              {flowConfigs.length === 0 && nodes.length > 0 && (
+                <div className={`text-center py-6 ${getThemeStyles().textMuted}`}>
+                  <Workflow className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No flows created</p>
+                  <p className="text-xs">Click + to create a new flow path</p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {flowConfigs.map(flow => (
+                  <div
+                    key={flow.id}
+                    className={`p-3 rounded-xl border transition-all backdrop-blur-sm ${
+                      selectedFlow === flow.id
+                        ? isDark ? 'border-teal-400/50 bg-teal-500/20' : 'border-blue-400/50 bg-blue-500/20'
+                        : isDark ? 'border-white/20 bg-white/5' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div
+                      className="flex items-center justify-between mb-3 cursor-pointer"
+                      onClick={() => setSelectedFlow(selectedFlow === flow.id ? null : flow.id)}
+                    >
+                      <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={flow.label}
+                          onChange={(e) => setFlowConfigs(prev => prev.map(f =>
+                            f.id === flow.id ? { ...f, label: e.target.value } : f
+                          ))}
+                          className={`font-semibold text-sm bg-transparent border-none outline-none w-full ${getThemeStyles().textBold}`}
+                          placeholder="Flow name"
+                        />
+                        <div className={`text-xs ${getThemeStyles().textMuted}`}>
+                          {flow.path.length} nodes in path
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setFlowConfigs(prev => prev.map(f =>
+                            f.id === flow.id ? { ...f, enabled: !f.enabled } : f
+                          ))}
+                          className={`p-2 rounded-lg transition-all ${
+                            flow.enabled
+                              ? isDark
+                                ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                                : 'bg-green-500/10 text-green-600 hover:bg-green-500/20'
+                              : `${getThemeStyles().hoverBg} ${getThemeStyles().textMuted}`
+                          }`}
+                          title={flow.enabled ? 'Stop' : 'Start'}
+                        >
+                          {flow.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setFlowConfigs(prev => prev.filter(f => f.id !== flow.id));
+                            setFlowPackets(prev => prev.filter(p => p.flowId !== flow.id));
+                            if (selectedFlow === flow.id) setSelectedFlow(null);
+                          }}
+                          className={`p-2 rounded-lg transition-all ${getThemeStyles().hoverBg} ${getThemeStyles().textMuted}`}
+                          title="Delete Flow"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {selectedFlow === flow.id && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <div className="space-y-3 mt-3 pt-3 border-t border-white/10">
+                          {/* Path Builder */}
+                          <div>
+                            <label className={`block text-xs font-semibold mb-2 ${getThemeStyles().textBold}`}>Path Nodes</label>
+                            <div className="space-y-2">
+                              {flow.path.map((pathNode, index) => (
+                                  <div key={index} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-gray-100'}`}>
+                                    <span className={`text-xs ${getThemeStyles().textMuted}`}>{index + 1}.</span>
+                                    <select
+                                      value={pathNode.nodeId}
+                                      onChange={(e) => {
+                                        const newPath = [...flow.path];
+                                        newPath[index] = { ...pathNode, nodeId: e.target.value };
+                                        setFlowConfigs(prev => prev.map(f =>
+                                          f.id === flow.id ? { ...f, path: newPath } : f
+                                        ));
+                                      }}
+                                      className={`flex-1 text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-900 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border`}
+                                    >
+                                      <option value="">Select node...</option>
+                                      {nodes.map(n => (
+                                        <option key={n.id} value={n.id}>{n.label}</option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      type="number"
+                                      value={pathNode.delay}
+                                      onChange={(e) => {
+                                        const newPath = [...flow.path];
+                                        newPath[index] = { ...pathNode, delay: Number(e.target.value) };
+                                        setFlowConfigs(prev => prev.map(f =>
+                                          f.id === flow.id ? { ...f, path: newPath } : f
+                                        ));
+                                      }}
+                                      className={`w-16 text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-900 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border`}
+                                      placeholder="Delay"
+                                      min="0"
+                                      step="100"
+                                    />
+                                    <span className={`text-xs ${getThemeStyles().textMuted}`}>ms</span>
+                                    <button
+                                      onClick={() => {
+                                        const newPath = flow.path.filter((_, i) => i !== index);
+                                        setFlowConfigs(prev => prev.map(f =>
+                                          f.id === flow.id ? { ...f, path: newPath } : f
+                                        ));
+                                      }}
+                                      className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-600'}`}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                              ))}
+                              <button
+                                onClick={() => {
+                                  const newPath = [...flow.path, { nodeId: '', delay: 0 }];
+                                  setFlowConfigs(prev => prev.map(f =>
+                                    f.id === flow.id ? { ...f, path: newPath } : f
+                                  ));
+                                }}
+                                className={`w-full px-2 py-1.5 text-xs rounded-lg flex items-center justify-center gap-1 transition-colors ${isDark ? 'bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 border border-teal-400/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'}`}
+                              >
+                                <Plus className="w-3 h-3" /> Add Node
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Packet Settings */}
+                          <div>
+                            <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Speed</label>
+                            <input
+                              type="range"
+                              min="0.005"
+                              max="0.05"
+                              step="0.005"
+                              value={flow.speed}
+                              onChange={(e) => setFlowConfigs(prev => prev.map(f =>
+                                f.id === flow.id ? { ...f, speed: Number(e.target.value) } : f
+                              ))}
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div>
+                            <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Size</label>
+                            <input
+                              type="range"
+                              min="4"
+                              max="16"
+                              step="1"
+                              value={flow.packetSize}
+                              onChange={(e) => setFlowConfigs(prev => prev.map(f =>
+                                f.id === flow.id ? { ...f, packetSize: Number(e.target.value) } : f
+                              ))}
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div>
+                            <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Color</label>
+                            <input
+                              type="color"
+                              value={flow.packetColor}
+                              onChange={(e) => setFlowConfigs(prev => prev.map(f =>
+                                f.id === flow.id ? { ...f, packetColor: e.target.value } : f
+                              ))}
+                              className="w-full h-8 rounded cursor-pointer"
+                            />
+                          </div>
+
+                          <div>
+                            <label className={`block text-xs font-semibold mb-1 ${getThemeStyles().textBold}`}>Shape</label>
+                            <div className="grid grid-cols-4 gap-2">
+                              {(['circle', 'square', 'diamond', 'triangle'] as const).map(shape => (
+                                <button
+                                  key={shape}
+                                  onClick={() => setFlowConfigs(prev => prev.map(f =>
+                                    f.id === flow.id ? { ...f, packetShape: shape } : f
+                                  ))}
+                                  className={`p-2 rounded-lg border transition-all ${
+                                    flow.packetShape === shape
+                                      ? isDark ? 'border-teal-400 bg-teal-500/20' : 'border-blue-500 bg-blue-500/10'
+                                      : `${getThemeStyles().border} ${getThemeStyles().hoverBg}`
+                                  }`}
+                                >
+                                  {shape === 'circle' && <Circle className="w-4 h-4 mx-auto" />}
+                                  {shape === 'square' && <Square className="w-4 h-4 mx-auto" />}
+                                  {shape === 'diamond' && <Diamond className="w-4 h-4 mx-auto" />}
+                                  {shape === 'triangle' && <Triangle className="w-4 h-4 mx-auto" />}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <label className={`text-xs font-semibold ${getThemeStyles().textBold}`}>Trail Effect</label>
+                            <button
+                              onClick={() => setFlowConfigs(prev => prev.map(f =>
+                                f.id === flow.id ? { ...f, trail: !f.trail } : f
+                              ))}
+                              className={`px-3 py-1 rounded-lg text-xs transition-all font-medium ${
+                                flow.trail
+                                  ? isDark ? 'bg-teal-500/30 text-teal-200 border border-teal-400/50' : 'bg-blue-500/20 text-blue-700 border border-blue-300'
+                                  : isDark ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
+                              }`}
+                            >
+                              {flow.trail ? 'On' : 'Off'}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <label className={`text-xs font-semibold ${getThemeStyles().textBold}`}>Loop</label>
+                            <button
+                              onClick={() => setFlowConfigs(prev => prev.map(f =>
+                                f.id === flow.id ? { ...f, loop: !f.loop } : f
+                              ))}
+                              className={`px-3 py-1 rounded-lg text-xs transition-all font-medium ${
+                                flow.loop
+                                  ? isDark ? 'bg-teal-500/30 text-teal-200 border border-teal-400/50' : 'bg-blue-500/20 text-blue-700 border border-blue-300'
+                                  : isDark ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
+                              }`}
+                            >
+                              {flow.loop ? 'On' : 'Off'}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <label className={`text-xs font-semibold ${getThemeStyles().textBold}`}>Bidirectional</label>
+                            <button
+                              onClick={() => setFlowConfigs(prev => prev.map(f =>
+                                f.id === flow.id ? { ...f, bidirectional: !f.bidirectional } : f
+                              ))}
+                              className={`px-3 py-1 rounded-lg text-xs transition-all font-medium ${
+                                flow.bidirectional
+                                  ? isDark ? 'bg-teal-500/30 text-teal-200 border border-teal-400/50' : 'bg-blue-500/20 text-blue-700 border border-blue-300'
+                                  : isDark ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
+                              }`}
+                            >
+                              {flow.bidirectional ? 'On' : 'Off'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
