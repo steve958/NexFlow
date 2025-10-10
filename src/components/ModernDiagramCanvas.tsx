@@ -3981,11 +3981,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 return (
                   <>
-                    <div className={`flex items-center justify-between sticky top-0 backdrop-blur-sm pb-2 z-10 ${
-                      isDark
-                        ? 'bg-gradient-to-b from-gray-900 to-gray-900/80'
-                        : 'bg-gradient-to-b from-white to-white/80'
-                    }`}>
+                    <div className="flex items-center justify-between pb-2">
                       <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Node Properties</h3>
                       <button
                         onClick={() => setNodes(prev => prev.map(n =>
@@ -4208,11 +4204,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
                 return (
                   <>
-                    <div className={`flex items-center justify-between sticky top-0 backdrop-blur-sm pb-2 z-10 ${
-                      isDark
-                        ? 'bg-gradient-to-b from-gray-900 to-gray-900/80'
-                        : 'bg-gradient-to-b from-white to-white/80'
-                    }`}>
+                    <div className="flex items-center justify-between pb-2">
                       <h3 className={`text-sm font-bold drop-shadow-md ${getThemeStyles().textBold}`}>Edge Properties</h3>
                       <button
                         onClick={() => setEdges(prev => prev.map(e =>
