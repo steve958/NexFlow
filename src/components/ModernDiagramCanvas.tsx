@@ -3039,16 +3039,16 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             // Check if we've reached the end of the path
             if (flowPacket.direction === 'forward' && nextIndex >= flow.path.length) {
               if (flow.bidirectional) {
-                // Start moving backward
+                // Start moving backward from the last node
                 updatedFlows.push({
                   ...flowPacket,
                   direction: 'reverse',
-                  currentPathIndex: flow.path.length - 1,
+                  currentPathIndex: flow.path.length - 2, // Move to second-to-last node
                   progress: 0,
                   isWaiting: false
                 });
               } else if (flow.loop) {
-                // Loop back to start
+                // Loop back to start and wait at first node
                 const startNode = nodes.find(n => n.id === flow.path[0].nodeId);
                 if (startNode) {
                   updatedFlows.push({
@@ -3057,7 +3057,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     progress: 0,
                     x: startNode.x + startNode.width / 2,
                     y: startNode.y + startNode.height / 2,
-                    isWaiting: false
+                    direction: 'forward',
+                    isWaiting: true,
+                    waitStartTime: now
                   });
                 }
               }
@@ -3065,7 +3067,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               return;
             } else if (flowPacket.direction === 'reverse' && nextIndex < 0) {
               if (flow.loop) {
-                // Loop back to end
+                // Loop back to end and wait at last node
                 const endNode = nodes.find(n => n.id === flow.path[flow.path.length - 1].nodeId);
                 if (endNode) {
                   updatedFlows.push({
@@ -3075,17 +3077,18 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                     progress: 0,
                     x: endNode.x + endNode.width / 2,
                     y: endNode.y + endNode.height / 2,
-                    isWaiting: false
+                    isWaiting: true,
+                    waitStartTime: now
                   });
                 }
               }
               // Otherwise packet completes and is removed
               return;
             } else {
-              // Continue to next node
+              // Continue to next node - start moving from current node
               updatedFlows.push({
                 ...flowPacket,
-                currentPathIndex: nextIndex,
+                // Keep currentPathIndex at current node, packet will move toward nextIndex
                 progress: 0,
                 isWaiting: false
               });
@@ -3128,7 +3131,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               // Reached target node, start waiting
               updatedFlows.push({
                 ...flowPacket,
-                progress: 1,
+                currentPathIndex: nextIndex, // Update to target node index
+                progress: 0,
                 x: targetNode.x + targetNode.width / 2,
                 y: targetNode.y + targetNode.height / 2,
                 isWaiting: true,
@@ -3152,6 +3156,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
             // No edge found, teleport to next node (direct path)
             updatedFlows.push({
               ...flowPacket,
+              currentPathIndex: nextIndex, // Update to target node index
+              progress: 0,
               x: targetNode.x + targetNode.width / 2,
               y: targetNode.y + targetNode.height / 2,
               isWaiting: true,
@@ -4789,7 +4795,35 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                           <div>
                             <label className={`block text-xs font-semibold mb-2 ${getThemeStyles().textBold}`}>Path Nodes</label>
                             <div className="space-y-2">
-                              {flow.path.map((pathNode, index) => (
+                              {flow.path.map((pathNode, index) => {
+                                // Get available nodes for this position in the path
+                                const getAvailableNodes = () => {
+                                  if (index === 0) {
+                                    // First node: show all nodes
+                                    return nodes;
+                                  }
+
+                                  // For subsequent nodes: only show nodes connected to the previous node
+                                  const prevNodeId = flow.path[index - 1].nodeId;
+                                  if (!prevNodeId) return nodes; // If previous node not selected, show all
+
+                                  // Find all nodes connected to the previous node
+                                  const connectedNodeIds = new Set<string>();
+                                  edges.forEach(edge => {
+                                    if (edge.sourceId === prevNodeId) {
+                                      connectedNodeIds.add(edge.targetId);
+                                    }
+                                    if (edge.targetId === prevNodeId) {
+                                      connectedNodeIds.add(edge.sourceId);
+                                    }
+                                  });
+
+                                  return nodes.filter(n => connectedNodeIds.has(n.id));
+                                };
+
+                                const availableNodes = getAvailableNodes();
+
+                                return (
                                   <div key={index} className={`flex items-center gap-2 p-2 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-gray-100'}`}>
                                     <span className={`text-xs ${getThemeStyles().textMuted}`}>{index + 1}.</span>
                                     <select
@@ -4804,7 +4838,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                       className={`flex-1 text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-900 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border`}
                                     >
                                       <option value="">Select node...</option>
-                                      {nodes.map(n => (
+                                      {availableNodes.length === 0 && index > 0 && (
+                                        <option value="" disabled>No connected nodes</option>
+                                      )}
+                                      {availableNodes.map(n => (
                                         <option key={n.id} value={n.id}>{n.label}</option>
                                       ))}
                                     </select>
@@ -4836,7 +4873,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                       <X className="w-3 h-3" />
                                     </button>
                                   </div>
-                              ))}
+                                );
+                              })}
                               <button
                                 onClick={() => {
                                   const newPath = [...flow.path, { nodeId: '', delay: 0 }];
