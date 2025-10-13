@@ -488,7 +488,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
           // Handle demo project specially
           if (projectId === 'demo') {
             setCurrentProjectName('Demo Architecture');
-            setActivePanel('nodes');
+            setActivePanel('templates');
             return;
           }
 
@@ -561,8 +561,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
               setFlowConfigs([]);
             }
 
-            // Switch to nodes panel when a project is loaded
-            setActivePanel('nodes');
+            // Switch to templates panel when a project is loaded
+            setActivePanel('templates');
             // Reset viewport to ensure nodes are visible
             setViewport({ x: 0, y: 0, zoom: 1 });
             // Mark as saved when project is loaded
@@ -5055,10 +5055,10 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                                       : `${getThemeStyles().border} ${getThemeStyles().hoverBg}`
                                   }`}
                                 >
-                                  {shape === 'circle' && <Circle className="w-4 h-4 mx-auto" />}
-                                  {shape === 'square' && <Square className="w-4 h-4 mx-auto" />}
-                                  {shape === 'diamond' && <Diamond className="w-4 h-4 mx-auto" />}
-                                  {shape === 'triangle' && <Triangle className="w-4 h-4 mx-auto" />}
+                                  {shape === 'circle' && <Circle className="w-4 h-4 mx-auto" style={{ stroke: isDark ? '#ffffff' : undefined }} />}
+                                  {shape === 'square' && <Square className="w-4 h-4 mx-auto" style={{ stroke: isDark ? '#ffffff' : undefined }} />}
+                                  {shape === 'diamond' && <Diamond className="w-4 h-4 mx-auto" style={{ stroke: isDark ? '#ffffff' : undefined }} />}
+                                  {shape === 'triangle' && <Triangle className="w-4 h-4 mx-auto" style={{ stroke: isDark ? '#ffffff' : undefined }} />}
                                 </button>
                               ))}
                             </div>
