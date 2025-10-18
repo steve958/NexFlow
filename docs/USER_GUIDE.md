@@ -14,7 +14,6 @@ A practical guide to creating, collaborating on, and exporting diagrams in NexFl
 - Animations on Edges
 - Groups & Organization
 - Auto‑Layout
-- Collaboration & Presence
 - Export, Import, and Sharing
 - Keyboard Shortcuts
 - Troubleshooting
@@ -180,21 +179,6 @@ Notes:
 
 ---
 
-## Collaboration & Presence
-Presence:
-- See active collaborators and their cursors in real time.
-- Colored presence badges indicate who’s online.
-
-Tips:
-- Communicate externally if multiple users are editing at once.
-- Work in separate canvas areas to reduce conflicts.
-- Save frequently; the latest save overwrites prior changes if conflicts occur.
-
-Current limitations:
-- No granular roles/permissions (all authenticated users can edit shared projects).
-- No conflict resolution (operational transforms) yet.
-
----
 
 ## Export, Import, and Sharing
 Export formats:

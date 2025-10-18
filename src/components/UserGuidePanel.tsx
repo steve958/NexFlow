@@ -22,7 +22,7 @@ export function UserGuidePanel({ isOpen, onClose }: UserGuidePanelProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000] flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl border shadow-2xl bg-white/95 dark:bg-gray-900/95 border-gray-200 dark:border-gray-700">
+      <div className="w-full max-w-5xl max-h-[calc(100dvh-64px)] overflow-hidden rounded-2xl border shadow-2xl bg-white/95 dark:bg-gray-900/95 border-gray-200 dark:border-gray-700 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3 min-w-0">
@@ -44,7 +44,7 @@ export function UserGuidePanel({ isOpen, onClose }: UserGuidePanelProps) {
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto max-h-[calc(90vh-120px)] space-y-6">
+        <div className="flex-1 p-5 overflow-y-auto space-y-6">
           <Section title="Overview">
             <p>NexFlow is a collaborative diagram editor for system architecture, cloud infrastructure, network topology, and data flow diagrams. Drag templates, connect nodes, style edges, animate flows, auto‑layout your graph, and export to multiple formats.</p>
           </Section>
@@ -116,13 +116,6 @@ export function UserGuidePanel({ isOpen, onClose }: UserGuidePanelProps) {
             </ol>
           </Section>
 
-          <Section title="Collaboration & Presence">
-            <ul className="list-disc pl-5 space-y-1">
-              <li>See collaborators and live cursors in real time.</li>
-              <li>Save frequently; latest save wins in conflicts.</li>
-              <li>All authenticated users can edit shared links (roles coming).</li>
-            </ul>
-          </Section>
 
           <Section title="Export, Import, Sharing">
             <ul className="list-disc pl-5 space-y-1">
