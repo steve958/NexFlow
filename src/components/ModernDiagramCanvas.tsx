@@ -9,6 +9,7 @@ import { doc, getDocs, collection, deleteDoc, query, where, orderBy } from 'fire
 import { getUserProfile, createOrUpdateUserProfile, updateUserDisplayName, getUserStats, UserProfile, UserStats } from '@/lib/userStorage';
 import { autoLayout, layoutPresets, LayoutNode, LayoutEdge } from '@/lib/autoLayout';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
+import { UserGuidePanel } from './UserGuidePanel';
 import { CustomNodeBuilder, CustomNodeTemplate } from './CustomNodeBuilder';
 import { DiagramExporter, downloadFile, convertPNGtoJPG } from '@/lib/exportUtils';
 import { useCanvasTheme } from './CanvasThemeProvider';
@@ -623,7 +624,8 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   } | null>(null);
 
   // Help panel state
-  const [showHelp, setShowHelp] = useState(false);
+const [showHelp, setShowHelp] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showCustomNodeBuilder, setShowCustomNodeBuilder] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -5882,11 +5884,11 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
                 <BarChart3 className="w-4 h-4" />
               </button>
 
-              {/* Help */}
+{/* Help */}
               <button
-                onClick={() => setShowHelp(true)}
+                onClick={() => setShowUserGuide(true)}
                 className={`hidden md:inline-flex p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
-                title="Show Help (? key)"
+                title="Open User Guide"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
@@ -6974,6 +6976,9 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
 
         </div>
       </div>
+
+{/* User Guide Panel */}
+      <UserGuidePanel isOpen={showUserGuide} onClose={() => setShowUserGuide(false)} />
 
       {/* Keyboard Shortcuts Panel */}
       <KeyboardShortcutsPanel

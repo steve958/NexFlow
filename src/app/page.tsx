@@ -6,7 +6,7 @@ import NewProjectModal from "@/components/NewProjectModal";
 import TemplateBrowser from "@/components/TemplateBrowser";
 import { getFirebaseAuth } from "@/lib/firestoreClient";
 import { signOut, User, onAuthStateChanged } from "firebase/auth";
-import { LogOut, Plus, Clock, Star, Folder, Search, Grid, List, Trash2, Copy, User as UserIcon, Settings, Activity, BarChart3, Edit, Download, LogIn } from "lucide-react";
+import { LogOut, Plus, Clock, Star, Folder, Search, Grid, List, Trash2, Copy, User as UserIcon, Settings, Activity, BarChart3, Edit, Download, LogIn, BookOpen } from "lucide-react";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import { CanvasThemeProvider } from "@/components/CanvasThemeProvider";
 import { useCanvasTheme } from "@/components/CanvasThemeProvider";
@@ -18,6 +18,7 @@ import { createOrUpdateUserProfile, updateUserDisplayName, updateUserBio, getUse
 import { getUserActivities, formatActivityTime, logUserActivity } from "@/lib/activityStorage";
 import { ACTIVITY_DISPLAY_CONFIG, UserActivity } from "@/lib/activityTypes";
 import { PageTransition } from "@/components/PageTransition";
+import { UserGuidePanel } from "@/components/UserGuidePanel";
 
 function Dashboard() {
   const { isDark } = useCanvasTheme();
@@ -28,7 +29,8 @@ function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectStats, setProjectStats] = useState<{ total: number; categories: number; tags: number; lastModified: Date | null }>({ total: 0, categories: 0, tags: 0, lastModified: null });
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [isTemplateBrowserOpen, setIsTemplateBrowserOpen] = useState(false);
+const [isTemplateBrowserOpen, setIsTemplateBrowserOpen] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
 
   // User state management
   const [user, setUser] = useState<User | null>(null);
@@ -652,8 +654,40 @@ function Dashboard() {
                   }`}>
                     Create a new architecture diagram
                   </p>
+</button>
+                
+                <button
+                  onClick={() => setShowUserGuide(true)}
+                  className={`p-6 rounded-2xl transition-all text-left group shadow-xl border ${
+                    isDark
+                      ? 'bg-gray-800/50 border-gray-600 hover:border-blue-500/50 hover:bg-gray-800/70'
+                      : 'bg-white/80 border-gray-200 hover:border-blue-400 hover:bg-white'
+                  } backdrop-blur-sm`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <BookOpen className={`w-8 h-8 transition-colors ${
+                      isDark ? 'text-gray-400 group-hover:text-blue-400' : 'text-gray-600 group-hover:text-blue-600'
+                    }`} />
+                    <div>
+                      <h3 className={`text-lg font-semibold ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        User Guide
+                      </h3>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Learn the basics
+                      </p>
+                    </div>
+                  </div>
+                  <p className={`text-sm transition-colors ${
+                    isDark ? 'text-gray-300 group-hover:text-white' : 'text-gray-700 group-hover:text-gray-900'
+                  }`}>
+                    Open a quick, UI-friendly guide to NexFlow
+                  </p>
                 </button>
-
+                
                 <button
                   onClick={handleUseTemplate}
                   className={`p-6 rounded-2xl transition-all text-left group shadow-xl border ${
@@ -685,9 +719,24 @@ function Dashboard() {
                     Browse pre-built architecture patterns
                   </p>
                 </button>
-              </div>
+</div>
               )}
 
+              <UserGuidePanel isOpen={showUserGuide} onClose={() => setShowUserGuide(false)} />
+              
+              {/* Footer Help Link */}
+              <div className="mt-4 mb-8 flex items-center justify-center gap-4">
+                <button
+                  onClick={() => setShowUserGuide(true)}
+                  className={`inline-flex items-center gap-2 text-sm font-medium underline underline-offset-4 transition-colors ${
+                    isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-800'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Open User Guide
+                </button>
+              </div>
+              
               {/* Projects Section */}
               <div className={`rounded-3xl border shadow-2xl ${
                 isDark
