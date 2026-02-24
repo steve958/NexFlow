@@ -17,7 +17,10 @@ import { CanvasThemeToggle } from './CanvasThemeToggle';
 import ConfirmationModal from './ConfirmationModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import { VideoExportPanel } from './VideoExportPanel';
+import { CodeGenerationPanel } from './CodeGenerationPanel';
+import { CodePreviewPanel } from './CodePreviewPanel';
 import { useDebouncedSave } from '@/hooks/useDebouncedSave';
+import type { GeneratedFile } from '@/types/generation';
 import type {
   DiagramNode, DiagramEdge, NodeGroup, Viewport,
   AnimationConfig, FlowConfig, FlowPathNode, PacketShape,
@@ -615,6 +618,11 @@ const [showHelp, setShowHelp] = useState(false);
 
   // Video export state
   const [showVideoExportPanel, setShowVideoExportPanel] = useState(false);
+
+  // Code generation state
+  const [showCodeGenPanel, setShowCodeGenPanel] = useState(false);
+  const [showCodePreview, setShowCodePreview] = useState(false);
+  const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
 
 
   // Performance monitoring state
@@ -5791,6 +5799,17 @@ const [showHelp, setShowHelp] = useState(false);
               )}
               </div>
 
+              {/* Generate Code */}
+              <button
+                onClick={() => setShowCodeGenPanel(true)}
+                disabled={nodes.length === 0}
+                className={`hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-semibold shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-amber-500/30`}
+                title="Generate Code from Diagram"
+              >
+                <Zap className="w-4 h-4" />
+                Generate
+              </button>
+
               {/* Performance Stats */}
               <button
                 onClick={() => setShowPerformanceStats(!showPerformanceStats)}
@@ -7196,6 +7215,33 @@ const [showHelp, setShowHelp] = useState(false);
         onClose={() => setShowVideoExportPanel(false)}
         onRecordingStop={handleCanvasResize}
       />
+
+      {/* Code Generation Panel */}
+      <CodeGenerationPanel
+        isVisible={showCodeGenPanel}
+        onClose={() => setShowCodeGenPanel(false)}
+        onGenerated={(files) => {
+          setGeneratedFiles(files);
+          setShowCodeGenPanel(false);
+          setShowCodePreview(true);
+        }}
+        nodes={nodes}
+        edges={edges}
+        groups={groups}
+        isDark={isDark}
+      />
+
+      {/* Code Preview Panel */}
+      <CodePreviewPanel
+        isVisible={showCodePreview}
+        onClose={() => setShowCodePreview(false)}
+        onRegenerate={() => {
+          setShowCodePreview(false);
+          setShowCodeGenPanel(true);
+        }}
+        files={generatedFiles}
+        isDark={isDark}
+      />
     
 
       {/* === Mobile Bottom Toolbar (≤ md) === */}
@@ -7267,6 +7313,9 @@ const [showHelp, setShowHelp] = useState(false);
                   </button>
                   <button onClick={() => { setShowVideoExportPanel(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
                     <Video className="w-4 h-4" /><span className="text-sm">Video</span>
+                  </button>
+                  <button onClick={() => { setShowCodeGenPanel(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
+                    <Zap className="w-4 h-4" /><span className="text-sm">Generate</span>
                   </button>
                   <button onClick={() => { setShowKeyboardShortcuts(true); setIsMobileOverflowOpen(false); }} className={`flex items-center gap-2 p-2 rounded-lg ${getThemeStyles().hoverBg}`}>
                     <HelpCircle className="w-4 h-4" /><span className="text-sm">Shortcuts</span>
