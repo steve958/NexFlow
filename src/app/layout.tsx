@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
@@ -20,9 +21,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen antialiased" suppressHydrationWarning>
-        <ThemeProvider defaultTheme="system" storageKey="nexflow-theme">
-          {children}
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider defaultTheme="system" storageKey="nexflow-theme">
+            {children}
+          </ThemeProvider>
+        </ErrorBoundary>
         <Analytics />
       </body>
     </html>

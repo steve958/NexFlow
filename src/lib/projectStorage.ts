@@ -13,95 +13,8 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
-
-interface Node {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  description?: string;
-  type: 'service' | 'server' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code' | 'endpoint';
-  color: string;
-  borderColor: string;
-  textColor: string;
-  shape: 'rectangle' | 'rounded' | 'circle' | 'diamond';
-  isVisible: boolean;
-  shadow: boolean;
-  borderWidth: number;
-  fontSize: number;
-}
-
-interface NodeGroup {
-  id: string;
-  label: string;
-  description?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  borderColor: string;
-  backgroundColor: string;
-  nodeIds: string[];
-  isCollapsed: boolean;
-  isVisible: boolean;
-  padding: number;
-}
-
-interface Edge {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  sourceHandle: string;
-  targetHandle: string;
-  label: string;
-  color: string;
-  width: number;
-  style: 'solid' | 'dashed' | 'dotted';
-  animated: boolean;
-  bidirectional: boolean;
-  bounce: boolean;
-  curvature: number;
-  isVisible: boolean;
-}
-
-interface Viewport {
-  x: number;
-  y: number;
-  zoom: number;
-}
-
-interface AnimationConfig {
-  speed: number;
-  frequency: number;
-  size: number;
-  color: string;
-  shape: 'circle' | 'square' | 'diamond' | 'triangle';
-  trail: boolean;
-  enabled: boolean;
-  frameOffset?: number;
-}
-
-interface FlowPathNode {
-  nodeId: string;
-  delay: number;
-}
-
-interface FlowConfig {
-  id: string;
-  label: string;
-  path: FlowPathNode[];
-  packetColor: string;
-  packetSize: number;
-  packetShape: 'circle' | 'square' | 'diamond' | 'triangle';
-  speed: number;
-  trail: boolean;
-  loop: boolean;
-  return: boolean;
-  enabled: boolean;
-}
+import type { DiagramNode, DiagramEdge, NodeGroup, Viewport, AnimationConfig, FlowConfig } from '@/types/diagram';
+import { createProjectSchema, validate } from '@/lib/validation';
 
 export interface Project {
   id: string;
@@ -112,8 +25,8 @@ export interface Project {
   thumbnail?: string;
   isDemo: boolean;
   data?: {
-    nodes: Node[];
-    edges: Edge[];
+    nodes: DiagramNode[];
+    edges: DiagramEdge[];
     groups: NodeGroup[];
     viewport: Viewport;
     animationConfigs?: Record<string, AnimationConfig>;
@@ -254,6 +167,13 @@ export const createProject = async (
   tags: string[] = []
 ): Promise<Project | null> => {
   try {
+    // Validate inputs
+    const validation = validate(createProjectSchema, { name, description, category, tags });
+    if (!validation.success) {
+      throw new Error(validation.error);
+    }
+    const input = validation.data;
+
     const db = getFirebaseDb();
     const user = getCurrentUser();
 
@@ -263,14 +183,14 @@ export const createProject = async (
 
     const projectId = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newProject = {
-      name,
-      description,
+      name: input.name,
+      description: input.description,
       createdAt: serverTimestamp(),
       lastModified: serverTimestamp(),
       thumbnail: '/api/placeholder/300/200',
       isDemo: false,
-      tags,
-      category,
+      tags: input.tags,
+      category: input.category,
       userId: user.uid,
       data: {
         nodes: [],
@@ -398,7 +318,7 @@ export const duplicateProject = async (id: string, newName?: string): Promise<Pr
 // Save project data (nodes, edges, groups, viewport)
 export const saveProjectData = async (
   id: string,
-  data: { nodes: Node[]; edges: Edge[]; groups: NodeGroup[]; viewport: Viewport; animationConfigs?: Record<string, AnimationConfig>; flowConfigs?: FlowConfig[] }
+  data: { nodes: DiagramNode[]; edges: DiagramEdge[]; groups: NodeGroup[]; viewport: Viewport; animationConfigs?: Record<string, AnimationConfig>; flowConfigs?: FlowConfig[] }
 ): Promise<boolean> => {
   try {
     const project = await updateProject(id, { data });

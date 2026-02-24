@@ -1,46 +1,8 @@
-interface Node {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  type: string;
-  color: string;
-  borderColor: string;
-  textColor: string;
-  shape: 'rectangle' | 'rounded' | 'circle' | 'diamond';
-  isVisible: boolean;
-}
+import type { DiagramNode, DiagramEdge, NodeGroup } from '@/types/diagram';
 
-interface Edge {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  sourceHandle: string;
-  targetHandle: string;
-  label: string;
-  color: string;
-  width: number;
-  style: 'solid' | 'dashed' | 'dotted';
-  animated: boolean;
-  isVisible: boolean;
-}
-
-interface NodeGroup {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  borderColor: string;
-  backgroundColor: string;
-  nodeIds: string[];
-  isVisible: boolean;
-  padding: number;
-}
+// Local aliases for backward compatibility within this file
+type Node = DiagramNode;
+type Edge = DiagramEdge;
 
 interface ExportMethodOptions {
   quality?: number; // For JPG/PNG (0-1)
@@ -786,12 +748,6 @@ export class DiagramExporter {
     // Draw diagram
     await this.drawDiagram(ctx, opts);
 
-    console.log('Canvas created for video recording:', {
-      width: canvas.width,
-      height: canvas.height,
-      bounds
-    });
-
     return canvas;
   }
 
@@ -826,12 +782,6 @@ export class DiagramExporter {
 
     // Setup for real-time drawing
     this.setupRealtimeCanvas(canvas, ctx, bounds, opts);
-
-    console.log('Animation canvas setup:', {
-      width: canvas.width,
-      height: canvas.height,
-      container: containerRect
-    });
 
     return canvas;
   }
@@ -986,12 +936,6 @@ export class DiagramExporter {
       padding: 50,
       background: '#ffffff',
       quality: 1
-    });
-
-    console.log('Video canvas prepared:', {
-      dimensions: optimalDimensions,
-      videoConfig,
-      bounds
     });
 
     return canvas;

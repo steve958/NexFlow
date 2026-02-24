@@ -7,6 +7,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
+import { displayNameSchema, bioSchema, validate } from '@/lib/validation';
 
 import { UserActivity } from './activityTypes';
 
@@ -142,6 +143,11 @@ export async function createOrUpdateUserProfile(user: User, additionalData: Part
  */
 export async function updateUserDisplayName(uid: string, displayName: string): Promise<void> {
   try {
+    const result = validate(displayNameSchema, displayName);
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
     const db = getFirebaseDb();
     if (!db) {
       throw new Error('Firebase not initialized');
@@ -149,7 +155,7 @@ export async function updateUserDisplayName(uid: string, displayName: string): P
     const userRef = doc(db, 'users', uid);
 
     await updateDoc(userRef, {
-      displayName,
+      displayName: result.data,
       lastActive: serverTimestamp()
     });
   } catch (error) {
@@ -163,6 +169,11 @@ export async function updateUserDisplayName(uid: string, displayName: string): P
  */
 export async function updateUserBio(uid: string, bio: string): Promise<void> {
   try {
+    const result = validate(bioSchema, bio);
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
     const db = getFirebaseDb();
     if (!db) {
       throw new Error('Firebase not initialized');
@@ -170,7 +181,7 @@ export async function updateUserBio(uid: string, bio: string): Promise<void> {
     const userRef = doc(db, 'users', uid);
 
     await updateDoc(userRef, {
-      bio: bio.trim(),
+      bio: result.data,
       lastActive: serverTimestamp()
     });
   } catch (error) {

@@ -15,7 +15,7 @@ service cloud.firestore {
 
     // Allow users to query their own projects
     match /projects/{projectId} {
-      allow list: if request.auth != null && request.auth.uid in resource.data.userId;
+      allow list: if request.auth != null && request.auth.uid == resource.data.userId;
     }
   }
 }

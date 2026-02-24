@@ -17,26 +17,17 @@ import { CanvasThemeToggle } from './CanvasThemeToggle';
 import ConfirmationModal from './ConfirmationModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import { VideoExportPanel } from './VideoExportPanel';
+import { useDebouncedSave } from '@/hooks/useDebouncedSave';
+import type {
+  DiagramNode, DiagramEdge, NodeGroup, Viewport,
+  AnimationConfig, FlowConfig, FlowPathNode, PacketShape,
+  DiagramState,
+} from '@/types/diagram';
 
-interface Node {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  description?: string;
-  type: 'service' | 'server' | 'database' | 'queue' | 'gateway' | 'custom' | 'cloud' | 'api' | 'endpoint' | 'security' | 'storage' | 'compute' | 'network' | 'frontend' | 'mobile' | 'monitor' | 'cache' | 'auth' | 'email' | 'search' | 'analytics' | 'config' | 'cicd' | 'docs' | 'scheduler' | 'users' | 'chat' | 'workflow' | 'container' | 'router' | 'streaming' | 'timer' | 'notification' | 'secrets' | 'code';
-  color: string;
-  borderColor: string;
-  textColor: string;
-  shape: 'rectangle' | 'rounded' | 'circle' | 'diamond';
-  icon?: string;
-  fontSize: number;
-  borderWidth: number;
-  shadow: boolean;
-  isVisible: boolean;
-}
+// Local aliases to keep internal code unchanged
+type Node = DiagramNode;
+type Edge = DiagramEdge;
+type ViewportState = Viewport;
 
 interface NodeTemplate {
   type: Node['type'];
@@ -47,24 +38,6 @@ interface NodeTemplate {
   description: string;
 }
 
-interface Edge {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  sourceHandle: 'input' | 'output' | 'top' | 'bottom';
-  targetHandle: 'input' | 'output' | 'top' | 'bottom';
-  label: string;
-  color: string;
-  width: number;
-  style: 'solid' | 'dashed' | 'dotted';
-  animated: boolean;
-  bidirectional: boolean;
-  bounce: boolean;
-  curvature: number;
-  arrowSize: number;
-  isVisible: boolean;
-}
-
 interface Packet {
   id: string;
   x: number;
@@ -72,7 +45,7 @@ interface Packet {
   progress: number;
   color: string;
   size: number;
-  shape: 'circle' | 'square' | 'diamond' | 'triangle';
+  shape: PacketShape;
   edgeId: string;
   trail: boolean;
   speed: number;
@@ -81,77 +54,16 @@ interface Packet {
   hasBouncedOnce: boolean;
 }
 
-interface AnimationConfig {
-  speed: number;
-  frequency: number;
-  size: number;
-  color: string;
-  shape: 'circle' | 'square' | 'diamond' | 'triangle';
-  trail: boolean;
-  enabled: boolean;
-  frameOffset?: number;
-}
-
-interface NodeGroup {
-  id: string;
-  label: string;
-  description?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: string;
-  borderColor: string;
-  backgroundColor: string;
-  nodeIds: string[];
-  isCollapsed: boolean;
-  isVisible: boolean;
-  padding: number;
-}
-
-interface FlowPathNode {
-  nodeId: string;
-  delay: number; // delay in milliseconds before moving to next node
-}
-
-interface FlowConfig {
-  id: string;
-  label: string;
-  path: FlowPathNode[]; // ordered array of nodes to follow
-  packetColor: string;
-  packetSize: number;
-  packetShape: 'circle' | 'square' | 'diamond' | 'triangle';
-  speed: number;
-  trail: boolean;
-  loop: boolean; // if true, packet loops continuously
-  return: boolean; // if true, packet returns to start in reverse after reaching end
-  enabled: boolean;
-}
-
 interface FlowPacket {
   id: string;
   flowId: string;
-  currentPathIndex: number; // index in the path array
-  progress: number; // 0-1 progress along current edge
+  currentPathIndex: number;
+  progress: number;
   x: number;
   y: number;
   direction: 'forward' | 'reverse';
-  isWaiting: boolean; // waiting at a node due to delay
+  isWaiting: boolean;
   waitStartTime: number;
-}
-
-interface DiagramState {
-  nodes: Node[];
-  edges: Edge[];
-  groups: NodeGroup[];
-  animationConfigs: Record<string, AnimationConfig>;
-  flowConfigs?: FlowConfig[];
-}
-
-interface ViewportState {
-  x: number;
-  y: number;
-  zoom: number;
 }
 
 // Predefined node templates
@@ -854,10 +766,12 @@ const [showHelp, setShowHelp] = useState(false);
     }
   }, [pendingAction]);
 
-  // Auto-save to Firestore
+  // Debounced auto-save to Firestore
+  const { save: debouncedSave, flush: flushSave } = useDebouncedSave(projectId);
+
   const autoSaveToFirestore = useCallback(async () => {
     if (!projectId || projectId === 'demo') {
-      return; // Don't save demo project
+      return;
     }
 
     try {
@@ -874,6 +788,12 @@ const [showHelp, setShowHelp] = useState(false);
       console.error('Auto-save failed:', error);
     }
   }, [projectId, nodes, edges, groups, viewport, animationConfigs, flowConfigs]);
+
+  // Trigger debounced save whenever diagram state changes
+  useEffect(() => {
+    if (!projectId || projectId === 'demo') return;
+    debouncedSave({ nodes, edges, groups, viewport, animationConfigs, flowConfigs });
+  }, [nodes, edges, groups, viewport, animationConfigs, flowConfigs, projectId, debouncedSave]);
 
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
@@ -2453,7 +2373,7 @@ const [showHelp, setShowHelp] = useState(false);
 
     // Draw arrowheads for bidirectional edges
     if (edge.bidirectional) {
-      const arrowSize = edge.arrowSize / 3; // Scale down for visual balance
+      const arrowSize = (edge.arrowSize ?? 12) / 3; // Scale down for visual balance
 
       // Calculate arrow at end (target)
       const t = 0.95; // Position near the end
