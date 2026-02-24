@@ -189,6 +189,20 @@ export function CodeGenerationPanel({
     }
   }, [nodes, edges, groups, framework, infrastructure, orm, includes, additionalInstructions, aiProvider, aiApiKey, aiModel, onGenerated]);
 
+  // Keyboard: Escape to close (capture phase to beat canvas handler)
+  useEffect(() => {
+    if (!isVisible) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [isVisible, onClose]);
+
   if (!isVisible) return null;
 
   const bg = isDark ? 'bg-gray-900' : 'bg-white';
@@ -199,7 +213,7 @@ export function CodeGenerationPanel({
   const cardBg = isDark ? 'bg-gray-800/50' : 'bg-gray-50';
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-[10003] flex justify-end">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 

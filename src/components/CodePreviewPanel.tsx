@@ -265,21 +265,23 @@ export function CodePreviewPanel({
     URL.revokeObjectURL(url);
   }, [files]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — use capture phase so we run before the canvas handler
   useEffect(() => {
     if (!isVisible) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         handleCopyAll('plain');
       }
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         onClose();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [isVisible, handleCopyAll, onClose]);
 
   if (!isVisible || files.length === 0) return null;
@@ -296,7 +298,7 @@ export function CodePreviewPanel({
   const codeBg = isDark ? 'bg-gray-900/50' : 'bg-gray-50';
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col">
+    <div className="fixed inset-0 z-[10003] flex flex-col">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
