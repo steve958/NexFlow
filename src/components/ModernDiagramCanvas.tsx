@@ -3094,8 +3094,10 @@ const [showHelp, setShowHelp] = useState(false);
               );
 
               if (edge) {
-                // Get the starting position from the edge at progress 0 (or 1 if reverse)
-                const initialProgress = flowPacket.direction === 'reverse' ? 1 : 0;
+                // Get the starting position from the edge at progress 0 (or 1 if traversing edge backwards)
+                // The edge may be defined in the opposite direction to our path step
+                const isEdgeReversed = edge.sourceId === targetNodeId && edge.targetId === currentNodeId;
+                const initialProgress = isEdgeReversed ? 1 : 0;
                 const position = getPacketPosition(edge, initialProgress);
 
                 if (position) {
@@ -3171,15 +3173,10 @@ const [showHelp, setShowHelp] = useState(false);
               });
             } else {
               // Continue moving
-              // When in reverse, we need to traverse the edge backwards
-              // Check if we need to reverse the progress based on edge direction
-              let edgeProgress = newProgress;
-
-              // If going reverse and edge direction doesn't match our travel direction, invert progress
-              if (flowPacket.direction === 'reverse') {
-                // When returning, we go from target back to source, so invert the progress
-                edgeProgress = 1 - newProgress;
-              }
+              // Determine if we're traversing this edge against its defined direction.
+              // This handles both the return-bounce case AND explicit [A, B, A]-style paths.
+              const isEdgeReversed = edge.sourceId === targetNodeId && edge.targetId === sourceNodeId;
+              let edgeProgress = isEdgeReversed ? 1 - newProgress : newProgress;
 
               const position = getPacketPosition(edge, edgeProgress);
               if (position) {
