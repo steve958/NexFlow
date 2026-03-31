@@ -2611,6 +2611,43 @@ const [showHelp, setShowHelp] = useState(false);
     return { x, y };
   };
 
+  // Calculate packet position along an edge traversed from fromNodeId to toNodeId.
+  // Builds the bezier in the actual travel direction so progress 0→1 always moves
+  // from the "from" node's connection handle toward the "to" node's handle,
+  // regardless of which direction the edge was originally drawn.
+  const getDirectionalPacketPosition = (edge: Edge, fromNodeId: string, toNodeId: string, progress: number) => {
+    const points = getConnectionPoints(edge);
+    if (!points) return null;
+
+    const { startX, startY, endX, endY } = points;
+
+    // If the edge was drawn from→to, traverse forward; otherwise swap endpoints.
+    const isForward = edge.sourceId === fromNodeId;
+    const bStartX = isForward ? startX : endX;
+    const bStartY = isForward ? startY : endY;
+    const bEndX   = isForward ? endX   : startX;
+    const bEndY   = isForward ? endY   : startY;
+
+    const controlOffset = Math.min(Math.abs(bEndX - bStartX) * edge.curvature, 150);
+    const cp1X = bStartX + controlOffset;
+    const cp1Y = bStartY;
+    const cp2X = bEndX - controlOffset;
+    const cp2Y = bEndY;
+
+    const t = progress;
+    const x = Math.pow(1 - t, 3) * bStartX +
+              3 * Math.pow(1 - t, 2) * t * cp1X +
+              3 * (1 - t) * Math.pow(t, 2) * cp2X +
+              Math.pow(t, 3) * bEndX;
+
+    const y = Math.pow(1 - t, 3) * bStartY +
+              3 * Math.pow(1 - t, 2) * t * cp1Y +
+              3 * (1 - t) * Math.pow(t, 2) * cp2Y +
+              Math.pow(t, 3) * bEndY;
+
+    return { x, y };
+  };
+
   // Main render function
   const render = useCallback(() => {
     const startTime = performance.now();
@@ -3094,11 +3131,8 @@ const [showHelp, setShowHelp] = useState(false);
               );
 
               if (edge) {
-                // Get the starting position from the edge at progress 0 (or 1 if traversing edge backwards)
-                // The edge may be defined in the opposite direction to our path step
-                const isEdgeReversed = edge.sourceId === targetNodeId && edge.targetId === currentNodeId;
-                const initialProgress = isEdgeReversed ? 1 : 0;
-                const position = getPacketPosition(edge, initialProgress);
+                // Place packet at the "from" node's connection handle (progress=0 in directional space)
+                const position = getDirectionalPacketPosition(edge, currentNodeId, targetNodeId, 0);
 
                 if (position) {
                   updatedFlows.push({
@@ -3172,13 +3206,8 @@ const [showHelp, setShowHelp] = useState(false);
                 waitStartTime: now
               });
             } else {
-              // Continue moving
-              // Determine if we're traversing this edge against its defined direction.
-              // This handles both the return-bounce case AND explicit [A, B, A]-style paths.
-              const isEdgeReversed = edge.sourceId === targetNodeId && edge.targetId === sourceNodeId;
-              let edgeProgress = isEdgeReversed ? 1 - newProgress : newProgress;
-
-              const position = getPacketPosition(edge, edgeProgress);
+              // Continue moving — always 0→1 in the actual travel direction (from→to)
+              const position = getDirectionalPacketPosition(edge, sourceNodeId, targetNodeId, newProgress);
               if (position) {
                 updatedFlows.push({
                   ...flowPacket,
