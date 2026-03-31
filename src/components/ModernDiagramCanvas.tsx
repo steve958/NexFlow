@@ -3976,14 +3976,14 @@ const [showHelp, setShowHelp] = useState(false);
             <h2 className={`flex-1 text-base md:text-xl font-bold drop-shadow-lg truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>NexFlow - Diagram</h2>
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className={`md:hidden p-2 rounded-lg transition-colors ${
+              className={`p-2 rounded-lg transition-colors ${
                 isDark
                   ? 'hover:bg-white/10 text-white/80 hover:text-white'
                   : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
               }`}
-              title="Close Sidebar"
+              title="Collapse Sidebar"
             >
-              <X className="w-5 h-5" />
+              <PanelLeftClose className="w-5 h-5" />
             </button>
           </div>
 
