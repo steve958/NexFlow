@@ -3951,11 +3951,15 @@ const [showHelp, setShowHelp] = useState(false);
       )}
 
       {/* Left Sidebar */}
-      <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-30 md:z-auto h-full w-full md:w-[480px] md:flex-shrink-0 backdrop-blur-xl md:border-r flex flex-col min-h-0 transition-transform duration-300 overflow-hidden ${
-        isDark
+      <div className={`
+        fixed md:relative z-30 md:z-auto h-full flex-shrink-0 backdrop-blur-xl md:border-r flex flex-col min-h-0 overflow-hidden
+        transition-all duration-300
+        ${isSidebarOpen ? 'translate-x-0 w-full md:w-[480px]' : '-translate-x-full w-full md:translate-x-0 md:w-0 md:border-r-0'}
+        ${isDark
           ? 'bg-gradient-to-b from-gray-900/95 to-gray-900/98 border-white/10'
-          : 'bg-gradient-to-b from-white/95 to-gray-50/95 border-gray-200/80 shadow-xl'
-      } pb-[72px] md:pb-0`}>
+          : 'bg-gradient-to-b from-white/95 to-gray-50/95 border-gray-200/80 shadow-xl'}
+        pb-[72px] md:pb-0
+      `}>
         {/* Sidebar Header */}
         <div className={`p-3 md:p-4 border-b flex-shrink-0 backdrop-blur-sm z-20 ${
           isDark
