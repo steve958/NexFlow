@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video, PanelLeftClose, PanelLeftOpen, ServerCog } from 'lucide-react';
+import { Settings, Play, Pause, Square, Circle, Diamond, Triangle, Eye, EyeOff, Download, Save, Undo, Redo, FileJson, Image, ZoomIn, ZoomOut, Maximize, MousePointer, Database, Server, Cloud, Globe, Shield, Cpu, HardDrive, Network, Smartphone, Monitor, Layers, Zap, Trash2, Plus, HelpCircle, X, FolderOpen, Edit, Lock, Mail, Search, BarChart3, Settings2, GitBranch, FileText, Calendar, Users, MessageSquare, Workflow, Container, Route, Radio, Timer, Bell, Key, Code2, ArrowRight, CheckCircle, Video, PanelLeftClose, PanelLeftOpen, ServerCog, ChevronDown, ChevronUp } from 'lucide-react';
 import NextImage from 'next/image';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firestoreClient';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -395,6 +395,7 @@ const ModernDiagramCanvas = ({ projectId }: ModernDiagramCanvasProps) => {
   const [flowConfigs, setFlowConfigs] = useState<FlowConfig[]>([]);
   const [flowPackets, setFlowPackets] = useState<FlowPacket[]>([]);
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
+  const [collapsedFlows, setCollapsedFlows] = useState<Set<string>>(new Set());
 
   // Load project data when projectId changes
   useEffect(() => {
@@ -4808,7 +4809,7 @@ const [showHelp, setShowHelp] = useState(false);
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <input
                           type="text"
                           value={flow.label}
@@ -4839,6 +4840,17 @@ const [showHelp, setShowHelp] = useState(false);
                           {flow.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                         </button>
                         <button
+                          onClick={() => setCollapsedFlows(prev => {
+                            const next = new Set(prev);
+                            next.has(flow.id) ? next.delete(flow.id) : next.add(flow.id);
+                            return next;
+                          })}
+                          className={`p-2 rounded-lg transition-all ${getThemeStyles().hoverBg} ${getThemeStyles().textMuted}`}
+                          title={collapsedFlows.has(flow.id) ? 'Expand' : 'Collapse'}
+                        >
+                          {collapsedFlows.has(flow.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </button>
+                        <button
                           onClick={() => {
                             setFlowConfigs(prev => prev.filter(f => f.id !== flow.id));
                             setFlowPackets(prev => prev.filter(p => p.flowId !== flow.id));
@@ -4852,7 +4864,7 @@ const [showHelp, setShowHelp] = useState(false);
                       </div>
                     </div>
 
-                    {!flow.enabled && (
+                    {!collapsedFlows.has(flow.id) && !flow.enabled && (
                       <div>
                         <div className="space-y-3 mt-3 pt-3 border-t border-white/10">
                           {/* Path Builder */}
