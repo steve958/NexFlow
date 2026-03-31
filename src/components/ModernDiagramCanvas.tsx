@@ -1927,7 +1927,16 @@ const [showHelp, setShowHelp] = useState(false);
     // Initial resize
     handleCanvasResize();
 
-    // Listen for window resize
+    // ResizeObserver keeps canvas pixel dimensions in sync with its container,
+    // covering both window resizes and sidebar open/close transitions.
+    const container = canvasRef.current?.parentElement;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => handleCanvasResize());
+      ro.observe(container);
+      return () => ro.disconnect();
+    }
+
+    // Fallback for environments without ResizeObserver
     window.addEventListener('resize', handleCanvasResize);
     return () => window.removeEventListener('resize', handleCanvasResize);
   }, [isClient, handleCanvasResize]);
@@ -5500,10 +5509,10 @@ const [showHelp, setShowHelp] = useState(false);
             : 'bg-gradient-to-r from-white/95 via-gray-50/95 to-white/95 border-gray-200/80 shadow-lg'
         }`}>
           <div className="flex items-center justify-between gap-2">
-            {/* Sidebar Toggle (Mobile Only) */}
+            {/* Sidebar Toggle */}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className={`md:hidden p-2 rounded-lg transition-all hover:scale-110 flex-shrink-0 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
+              className={`p-2 rounded-lg transition-all hover:scale-110 flex-shrink-0 ${isDark ? 'hover:bg-white/10 text-white/80 hover:text-white' : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-800'}`}
               title={isSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}
             >
               {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
